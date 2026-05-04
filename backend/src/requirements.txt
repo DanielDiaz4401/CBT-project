@@ -1,0 +1,20 @@
+# --- Web Server ---
+fastapi[all]          # Framework principal (incluye pydantic y email-validator)
+uvicorn[standard]      # Servidor ASGI para correr la aplicación
+
+# --- Database ---
+sqlalchemy            # El ORM para los modelos
+psycopg2-binary       # Driver para conectar Python con PostgreSQL
+alembic               # (Recomendado) Para gestionar migraciones de base de datos
+
+# --- Environment & Utils ---
+python-dotenv         # Para leer el archivo .env
+python-multipart      # Necesario para recibir archivos (UploadFile)
+pydantic-settings     # Gestión de configuraciones avanzada (opcional pero útil)
+
+# --- Algorithm Support (Opcional, según lo que use tu lógica) ---
+pandas                # Muy común si tu algoritmo procesa CSVs o tablas
+numpy                 # Para cálculos numéricos pesados
+
+networkx
+tqdm

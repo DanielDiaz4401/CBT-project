@@ -1,0 +1,41 @@
+services:
+  frontend:
+    container_name: frontend
+    build: ./frontend
+    ports:
+      - "4321:4321"
+    #environment:
+    #  - BACKEND_URL=http://backend:3000
+    volumes:
+      - ./frontend/src:/app
+      - /app/node_modules
+
+  backend:
+    container_name: backend
+    build: ./backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/simulations
+    volumes:
+      - ./backend/src:/app/app
+      - backend_storage:/app/storage
+
+  db:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: simulations
+    ports:
+      - "5432:5432"
+    volumes:
+      #- pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  pgdata:
+  backend_storage:
