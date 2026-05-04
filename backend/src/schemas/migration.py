@@ -20,10 +20,11 @@ class SimulationFileType(str, Enum):
 # --- 2. SCHEMAS DE ENTRADA (Requests) ---
 class SimulationCreate(BaseModel):
     name: str
-    l_extra: int
+    l_extra: float
     c_min: int
     c_max: int
-    l_max: int
+    l_max: float
+    threshold: float
 
 # --- 3. SCHEMAS DE RESUMEN (Para /simulations/ y /calculate) ---
 class SimulationSummary(BaseModel):

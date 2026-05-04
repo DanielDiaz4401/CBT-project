@@ -5,7 +5,7 @@ import traceback
 import numpy as np
 
 from app.db import crud, models
-from app.services.algorithm_testing import generate_migration_plan
+from app.services.guangorithm import generate_migration_plan
 
 logger=logging.getLogger(__name__)
 
@@ -29,7 +29,8 @@ def run_simulation_process(db: Session, sim_id: UUID):
             ruta_aristas=sim.edges_file.path,
             ruta_paths=sim.paths_file.path,
             c_min=sim.c_min, c_max=sim.c_max,
-            l_max=sim.l_max, l_extra=sim.l_extra
+            l_max=sim.l_max, l_extra=sim.l_extra,
+            umbral=sim.threshold
         )
         
         crud.update_simulation_status(db, sim_id, models.SimulationStatus.PROCESSING)

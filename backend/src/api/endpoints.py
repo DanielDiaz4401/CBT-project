@@ -37,10 +37,11 @@ def list_simulations(skip: int = 0, limit: int = 100, db: Session = Depends(sess
 async def create_simulation(
     background_tasks: BackgroundTasks,
     name: str = Form(...),
-    l_extra: int = Form(...),
+    l_extra: float = Form(...),
     c_min: int = Form(...),
     c_max: int = Form(...),
-    l_max: int = Form(...),
+    l_max: float = Form(...),
+    threshold: float = Form(...),
     nodes_file: UploadFile = File(...),
     edges_file: UploadFile = File(...),
     paths_file: UploadFile = File(...),
@@ -59,7 +60,7 @@ async def create_simulation(
 
     sim_data = schemas.SimulationCreate(
         name=name,
-        l_extra=l_extra, c_min=c_min, c_max=c_max, l_max=l_max
+        l_extra=l_extra, c_min=c_min, c_max=c_max, l_max=l_max, threshold=threshold
     )
 
     new_sim = crud.create_simulation(db, sim_data, f_nodes.id, f_edges.id, f_paths.id)

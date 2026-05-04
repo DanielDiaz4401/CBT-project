@@ -41,11 +41,11 @@ class Simulation(Base):
     error_message = Column(String, nullable=True)
     
     # Parámetros de la simulación
-    l_extra = Column(Integer)
+    l_extra = Column(Float)
     c_min = Column(Integer)
     c_max = Column(Integer)
-    l_max = Column(Integer)
-    treshold = Column(Float)
+    l_max = Column(Float)
+    threshold = Column(Float)
     
     # IDs de archivos (Relacionados con SimulationFile)
     nodes_file_id = Column(Integer, ForeignKey("simulation_files.id"), nullable=True)

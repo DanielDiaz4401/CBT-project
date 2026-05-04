@@ -1,7 +1,12 @@
+
+
 import pandas as pd
 import json
 import ast
+import logging
 from tqdm import tqdm
+
+logger = logging.getLogger(__name__)
 
 # Parámetros principales (ahora se pasan como argumentos o toman su valor de ahi)
 # c_min=1
@@ -17,8 +22,8 @@ def import_jsons(edges_path, nodes_path, paths_path):
         paths_df = pd.read_csv(paths_path)
         return edges_df, nodes_df, paths_df
     except FileNotFoundError as e:
-        print(f"Error: {e}")
-        exit(1)
+        logger.error(f"Error: {e}")
+        raise e
 
 # edges_dict={
 #     (invoker,invoked): avg_time
@@ -487,6 +492,17 @@ def get_stages(c_min, c_max, l_max_final, l_extra, pending_components, paths_dic
                 current_max_latency = current_max_latency.item()
             critical_paths_latency.append(current_max_latency)
 
+            # Guardar la evolución por path (consumido por generate_migration_plan)
+            stage_number = len(stages)
+            for path_info in paths_dict.values():
+                if 'evolucion_por_etapa' not in path_info:
+                    path_info['evolucion_por_etapa'] = []
+                path_info['evolucion_por_etapa'].append({
+                    "stage_number": stage_number,
+                    "critical_time": float(path_info.get("current_total", 0)),
+                    "migrated_components": current_stage.copy()
+                })
+
             migrated_components = total_components - len(components_on_prem)
             pbar.update(len(current_stage))
             flag = " [FALLBACK]" if forzada else ""
@@ -514,6 +530,73 @@ def setup(edges_path, nodes_path, paths_path, l_extra):
 
     return edges_dict, nodes_dict, paths_dict, method_to_component, component_to_paths, component_adjacency, pending_components, component_to_cluster
 
+
+def generate_migration_plan(
+            ruta_nodos,
+            ruta_aristas,
+            ruta_paths,
+            c_min,
+            c_max,
+            l_max,
+            l_extra,
+            umbral
+        ):
+    edges_dict, nodes_dict, paths_dict, method_to_component, component_to_paths, component_adjacency, pending_components, component_to_cluster = setup(
+        ruta_aristas, ruta_nodos, ruta_paths, l_extra
+    )
+    logger.info("Iniciando algoritmo")
+    stages, critical_paths_latency, _ = get_stages(
+        c_min, c_max, l_max, l_extra,
+        pending_components, paths_dict,
+        component_to_paths, component_adjacency, method_to_component,
+        component_to_cluster, umbral
+    )
+    logger.info("Algoritmo finalizado")
+
+    etapas_output = []
+    for i, current_stage in enumerate(stages):
+        etapas_output.append({
+            "stage_number": i + 1,
+            "migrated_components": current_stage,
+            "worst_critical_time": float(critical_paths_latency[i + 1] if i + 1 < len(critical_paths_latency) else 0)
+        })
+
+    rutas_criticas_output = []
+    for path_id, path_info in paths_dict.items():
+        path_num = int(path_id.split('_')[1]) if '_' in path_id else path_id
+
+        nodos_list = []
+        for invoker, invoked in path_info['edges']:
+            invoker_comp = method_to_component.get(invoker, str(invoker))
+            invoked_comp = method_to_component.get(invoked, str(invoked))
+            if not nodos_list:
+                nodos_list.append(invoker_comp)
+            elif nodos_list[-1] != invoker_comp:
+                nodos_list.append(invoker_comp)
+            if nodos_list[-1] != invoked_comp:
+                nodos_list.append(invoked_comp)
+
+        aristas_list = []
+        for invoker, invoked, base_lat in path_info['edges_data']:
+            aristas_list.append({
+                "invoker": method_to_component.get(invoker, str(invoker)),
+                "invoked": method_to_component.get(invoked, str(invoked)),
+                "base_latency": float(base_lat)
+            })
+
+        rutas_criticas_output.append({
+            "path_number": path_num,
+            "nodos": nodos_list,
+            "aristas": aristas_list,
+            "evolucion_por_etapa": path_info.get('evolucion_por_etapa', [])
+        })
+
+    return {
+        "etapas": etapas_output,
+        "rutas_criticas": rutas_criticas_output
+    }
+
+
 if __name__ == "__main__":
     import os
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -521,33 +604,18 @@ if __name__ == "__main__":
     nodes_path = os.path.join(base_dir, "nodes.csv")
     paths_path = os.path.join(base_dir, "paths.csv")
 
+    # Valores por defecto para ejecución manual
     c_min = 1
     c_max = 5
-    l_max_final = 150   # objetivo del enunciado
+    l_max = 150
     l_extra = 30
-    umbral = 0.0        # margen porcentual sobre l_max_final (ej. 0.1 = +10%)
 
-    edges_dict, nodes_list, paths_dict, method_to_component, component_to_paths, component_adjacency, pending_components, component_to_cluster = setup(edges_path, nodes_path, paths_path, l_extra)
+    output = generate_migration_plan(nodes_path, edges_path, paths_path, c_min, c_max, l_max, l_extra)
 
-    stages, critical_paths_latency, _ = get_stages(c_min, c_max, l_max_final, l_extra, pending_components, paths_dict, component_to_paths, component_adjacency, method_to_component, component_to_cluster, umbral)
-
-    sep = "─" * 64
-    print(f"\n{sep}")
-    print(f"  RESULTADO: {len(stages)} etapas  |  l_max_final={l_max_final} ms  |  umbral={umbral}  |  l_extra={l_extra} ms")
-    print(f"  Latencia inicial : {critical_paths_latency[0]:.2f} ms")
-    print(f"  Latencia final   : {critical_paths_latency[-1]:.2f} ms")
-    print(sep)
-    print(f"  {'Etapa':>5}  {'# comps':>7}  {'Latencia':>10}  Componentes")
-    print(sep)
-    for i, stage in enumerate(stages[:5], 1):
-        lat = critical_paths_latency[i]
-        comps_str = ", ".join(stage) if len(stage) <= 4 else f"{', '.join(stage[:4])} …(+{len(stage)-4})"
-        print(f"  {i:>5}  {len(stage):>7}  {lat:>9.2f}ms  {comps_str}")
-    if len(stages) > 5:
-        print(f"  {'...':>5}  {'...':>7}  {'...':>10}  ({len(stages)-5} etapas más)")
-    print(sep)
+    print(f"\nGeneración finalizada: {len(output['etapas'])} etapas de migración.")
 
     output_path = "stages_output.json"
     with open(output_path, "w") as f:
-        json.dump(stages, f, indent=4)
-    print(f"\nExportado a: {output_path}")
+        json.dump(output, f, indent=4)
+    print(f"El resultado de las etapas ha sido exportado exitosamente a: {output_path}")
+
