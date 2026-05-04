@@ -47,7 +47,6 @@ pip-delete-this-directory.txt
 # --- Databases & Docker ---
 # Basado en tu configuración de PostgreSQL
 postgres_data/
-*.sql
 *.sqlite
 *.csv
 
