@@ -63,7 +63,7 @@ CREATE TABLE critical_paths (
     id SERIAL PRIMARY KEY,
     simulation_id UUID REFERENCES simulations(id) ON DELETE CASCADE,
     path_number INTEGER NOT NULL,
-    affected_stages INTEGER[] DEFAULT '[]'
+    affected_stages INTEGER[] DEFAULT '{}'
 );
 
 CREATE TABLE path_nodes (
