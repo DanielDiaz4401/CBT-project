@@ -55,8 +55,8 @@ export default function SetupModal({ onClose, onConfirm, isCalculating }) {
     formData.append('c_max', params.c_max);
     formData.append('l_max', params.l_max);
     formData.append('l_extra', params.l_extra);
-    formData.append('umbral', params.umbral);
-    formData.append('constraints', JSON.stringify(constraints));
+    formData.append('threshold', params.umbral);
+    //formData.append('constraints', JSON.stringify(constraints));
 
     onConfirm(formData);
   };
