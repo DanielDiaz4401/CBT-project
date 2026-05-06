@@ -39,7 +39,7 @@ export default function SetupModal({ onClose, onConfirm, isCalculating }) {
     formData.append('c_min', params.c_min);
     formData.append('c_max', params.c_max);
     formData.append('l_max', params.l_max);
-    formData.append('treshold', params.umbral);
+    formData.append('threshold', params.umbral);
 
     onConfirm(formData);
   };
