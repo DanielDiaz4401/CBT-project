@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 export default function MigrationList({ migrations, onNewMigration, onViewDetail, onDeleteMigration }) {
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
 
   // Contadores por estado
   const total = migrations.length;
@@ -16,6 +17,39 @@ export default function MigrationList({ migrations, onNewMigration, onViewDetail
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     );
   };
+
+  const requestSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const sortedMigrations = React.useMemo(() => {
+    let sortableItems = [...migrations];
+    sortableItems.sort((a, b) => {
+      // Manejo especial para la fecha (usamos created_at si existe, o date)
+      if (sortConfig.key === 'date') {
+        const dateA = new Date(a.created_at || a.date).getTime() || 0;
+        const dateB = new Date(b.created_at || b.date).getTime() || 0;
+        return sortConfig.direction === 'asc' ? dateA - dateB : dateB - dateA;
+      }
+
+      // Ordenación estándar para texto (nombre, status)
+      const valA = (a[sortConfig.key] || '').toString().toLowerCase();
+      const valB = (b[sortConfig.key] || '').toString().toLowerCase();
+      
+      if (valA < valB) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (valA > valB) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+    return sortableItems;
+  }, [migrations, sortConfig]);
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -80,14 +114,40 @@ export default function MigrationList({ migrations, onNewMigration, onViewDetail
             <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
               <tr>
                 {isSelectMode && <th className="p-4 w-10"></th>}
-                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Simulation Name</th>
-                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
-                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                <th
+                  onClick={() => requestSort('name')}
+                  className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                >
+                  <div className="flex items-center gap-1">
+                    Simulation Name
+                    {sortConfig.key === 'name' && (<span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>)}
+                  </div>
+                </th>
+                <th
+                  onClick={() => requestSort('date')}
+                  className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                >
+                  <div className="flex items-center gap-1">
+                    Date
+                    {sortConfig.key === 'date' && (<span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>)}
+                  </div>
+                </th>
+                <th
+                  onClick={() => requestSort('status')}
+                  className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest cursor-pointer hover:bg-slate-100 transition-colors select-none"
+                >
+                  <div className="flex items-center gap-1">
+                    Status
+                    {sortConfig.key === 'status' && (<span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>)}
+                  </div>
+                </th>
+                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {migrations.map((m) => (
+              {sortedMigrations.map((m) => (
                 <tr key={m.id} className={`hover:bg-slate-50 transition-colors ${selectedIds.includes(m.id) ? 'bg-blue-50/50' : ''}`}>
                   {isSelectMode && (
                     <td className="p-4">
@@ -115,7 +175,11 @@ export default function MigrationList({ migrations, onNewMigration, onViewDetail
                       </div>
                     )}
                   </td>
-                  <td className="p-4 text-sm text-slate-500">{m.date}</td>
+                  <td className="p-4 text-sm text-slate-500">
+                    {m.created_at
+                      ? new Date(m.created_at).toLocaleString()
+                      : (m.date ? new Date(m.date).toLocaleString() : 'N/A')}
+                  </td>
                   <td className="p-4">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                       m.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
