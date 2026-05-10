@@ -29,7 +29,7 @@ export default function SetupModal({ onClose, onConfirm, isCalculating }) {
 
   const addConstraint = () => {
     if (!newNodeId || !newStage) return;
-    const newObj = { node_id: newNodeId, stage: parseInt(newStage) };
+    const newObj = { component_name: newNodeId, stage_number: parseInt(newStage) };
     setConstraints([...constraints, newObj]);
     setNewNodeId('');
     setNewStage('');
@@ -56,7 +56,7 @@ export default function SetupModal({ onClose, onConfirm, isCalculating }) {
     formData.append('l_max', params.l_max);
     formData.append('l_extra', params.l_extra);
     formData.append('threshold', params.umbral);
-    //formData.append('constraints', JSON.stringify(constraints));
+    formData.append('blocked_components', JSON.stringify(constraints));
 
     onConfirm(formData);
   };
@@ -144,8 +144,8 @@ export default function SetupModal({ onClose, onConfirm, isCalculating }) {
                 constraints.map((c, i) => (
                   <div key={i} className="flex items-center justify-between bg-white border border-slate-100 p-2 rounded-lg shadow-sm">
                     <div className="flex gap-2 items-center">
-                      <span className="text-[9px] font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">ID: {c.node_id}</span>
-                      <span className="text-[9px] font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200">STAGE: {c.stage}</span>
+                      <span className="text-[9px] font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">ID: {c.component_name}</span>
+                      <span className="text-[9px] font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200">STAGE: {c.stage_number}</span>
                     </div>
                     <button onClick={() => removeConstraint(i)} className="text-slate-300 hover:text-red-500 transition-colors px-1">✕</button>
                   </div>

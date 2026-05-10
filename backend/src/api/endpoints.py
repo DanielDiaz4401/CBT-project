@@ -42,6 +42,7 @@ async def create_simulation(
     c_max: int = Form(...),
     l_max: float = Form(...),
     threshold: float = Form(...),
+    blocked_components: str = Form([]),
     nodes_file: UploadFile = File(...),
     edges_file: UploadFile = File(...),
     paths_file: UploadFile = File(...),
@@ -58,12 +59,20 @@ async def create_simulation(
     f_edges = crud.get_or_create_file(db, edges_file.filename, e_content)
     f_paths = crud.get_or_create_file(db, paths_file.filename, p_content)
 
+    # Parseo del JSON del frontend
+    try:
+        blocked_comps_list = json.loads(blocked_components)
+    except json.JSONDecodeError:
+        blocked_comps_list = []
+
     sim_data = schemas.SimulationCreate(
         name=name,
         l_extra=l_extra, c_min=c_min, c_max=c_max, l_max=l_max, threshold=threshold
     )
 
-    new_sim = crud.create_simulation(db, sim_data, f_nodes.id, f_edges.id, f_paths.id)
+    new_sim = crud.create_simulation(
+            db, sim_data, f_nodes.id, f_edges.id, f_paths.id, blocked_comps_list
+    )
     
     # Lanzar proceso
     pending_tasks.add(new_sim.id)

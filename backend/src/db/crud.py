@@ -43,7 +43,7 @@ def get_file_by_type(db: Session, sim_id: UUID, file_type: str):
 def get_simulations(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Simulation).offset(skip).limit(limit).all()
 
-def create_simulation(db: Session, sim_data: schemas.SimulationCreate, nodes_id: int, edges_id: int, paths_id: int):
+def create_simulation(db: Session, sim_data: schemas.SimulationCreate, nodes_id: int, edges_id: int, paths_id: int, blocked_components_data: list):
     db_sim = models.Simulation(
         **sim_data.model_dump(),
         nodes_file_id=nodes_id,
@@ -54,6 +54,19 @@ def create_simulation(db: Session, sim_data: schemas.SimulationCreate, nodes_id:
     db.add(db_sim)
     db.commit()
     db.refresh(db_sim)
+    
+    # Guardar los blocked_components si existen
+    if blocked_components_data:
+        comps_to_insert = [
+            {
+                "simulation_id": db_sim.id,
+                "component_name": bc["component_name"],
+                "stage_number": bc["stage_number"]
+            }
+            for bc in blocked_components_data
+        ]
+        add_blocked_components_bulk(db, comps_to_insert)
+        
     return db_sim
 
 def get_simulation(db: Session, sim_id: UUID):
@@ -112,6 +125,11 @@ def add_critical_path_stages_bulk(db: Session, path_id: int, stages_data: list):
     for stage in stages_data:
         stage["path_id"] = path_id
     db.bulk_insert_mappings(models.CriticalPathStage, stages_data)
+    db.commit()
+
+def add_blocked_components_bulk(db:Session, components_data: list):
+    """Inserta componentes bloqueados en masa."""
+    db.bulk_insert_mappings(models.BlockedComponents, components_data)
     db.commit()
 
 def get_simulation_stages(db: Session, sim_id: UUID):

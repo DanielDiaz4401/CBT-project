@@ -87,3 +87,10 @@ CREATE TABLE critical_path_stages (
     critical_time NUMERIC(10, 4),
     migrated_components TEXT[]
 );
+
+CREATE TABLE blocked_components (
+    id SERIAL PRIMARY KEY,
+    simulation_id UUID REFERENCES simulations(id) ON DELETE CASCADE,
+    component_name VARCHAR(255) NOT NULL,
+    stage_number INTEGER
+);

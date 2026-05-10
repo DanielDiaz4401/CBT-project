@@ -327,7 +327,7 @@ def compute_clusters(nodes_df, edges_df, method_to_component,
 # Algoritmo principal
 def get_stages(c_min, c_max, l_max_final, l_extra, pending_components, paths_dict,
                component_to_paths, component_adjacency, method_to_component,
-               component_to_cluster, umbral=0.0, use_score=True):
+               component_to_cluster, umbral=0.0, lista_bloqueos=None, use_score=True):
     stages = []
     forzadas = []
 
@@ -335,6 +335,11 @@ def get_stages(c_min, c_max, l_max_final, l_extra, pending_components, paths_dic
     total_components = len(pending_components)
     components_on_prem = set(pending_components)
     score_cache = {}
+
+    bloqueos_dict = {}
+    if lista_bloqueos:
+        for b in lista_bloqueos:
+            bloqueos_dict[b['component_name']] = b['stage_number']
 
     # Desempate determinista: mayor score primero, luego component_id ascendente.
     def _score_key(c):
@@ -396,11 +401,19 @@ def get_stages(c_min, c_max, l_max_final, l_extra, pending_components, paths_dic
             # Paso A: precalcular arista roja (una vez por etapa)
             componentes_en_arista_roja = calcular_arista_roja(paths_dict, components_on_prem, method_to_component)
 
+            current_stage_num = len(stages) + 1
+            candidatos_posibles = []
+
             # Paso B: recalcular score solo de componentes no cacheados.
             # Score referenciado a l_effective: en fase forzada diferencia mejor los
             # componentes pegados al cap actual (min_slack pequeño) del resto.
             l_score_ref = l_effective
             for component in components_on_prem:
+                if component in bloqueos_dict and current_stage_num <= bloqueos_dict[component]:
+                    continue  # Si está bloqueado, pasamos al siguiente sin calcularle score
+                
+                candidatos_posibles.append(component)
+
                 if component not in score_cache:
                     if use_score:
                         score_cache[component] = calculate_score_component(
@@ -410,16 +423,25 @@ def get_stages(c_min, c_max, l_max_final, l_extra, pending_components, paths_dic
                     else:
                         score_cache[component] = 0.0
 
+            if not candidatos_posibles:
+                stages.append([])
+                forzadas.append(False)
+                # Conservamos la latencia máxima anterior para la gráfica
+                current_max_latency = max((path_info.get("current_total", 0) for path_info in paths_dict.values()), default=0)
+                if hasattr(current_max_latency, 'item'): current_max_latency = current_max_latency.item()
+                critical_paths_latency.append(current_max_latency)
+                continue
+
             # Paso D: top-1 por score crudo + compañeros ordenados por score.
             # Prioriza compañeros del mismo cluster que el top-1 (afinidad estructural
             # de Leiden → menos cruces temporales intra-etapa). Si el cluster no llega
             # a c_max-1 candidatos, completa con los mejores del resto por score.
-            mejor = min(components_on_prem, key=_score_key)
+            mejor = min(candidatos_posibles, key=_score_key)
             mi_cluster = component_to_cluster.get(mejor)
 
-            # Ordenar TODOS los candidatos por score (mejor primero) y separar por cluster.
+            # Ordenar SOLO los que no están bloqueados por score (mejor primero) y separar por cluster.
             # Esto garantiza que dentro del cluster también elegimos los más urgentes/útiles.
-            resto_ordenado = [c for c in sorted(components_on_prem, key=_score_key) if c != mejor]
+            resto_ordenado = [c for c in sorted(candidatos_posibles, key=_score_key) if c != mejor]
             del_cluster = [c for c in resto_ordenado if component_to_cluster.get(c) == mi_cluster]
             fuera_cluster = [c for c in resto_ordenado if component_to_cluster.get(c) != mi_cluster]
 
@@ -466,7 +488,7 @@ def get_stages(c_min, c_max, l_max_final, l_extra, pending_components, paths_dic
             else:
                 # Paso G: fallback seguro — simular antes de confirmar, nunca migrar a ciegas
                 fallback_done = False
-                for comp in sorted(components_on_prem, key=_score_key):
+                for comp in sorted(candidatos_posibles, key=_score_key):
                     simulated = components_on_prem - {comp}
                     ok = all(
                         calculate_path_latency(paths_dict[p], simulated, method_to_component, l_extra) <= l_effective
@@ -537,7 +559,8 @@ def generate_migration_plan(
             c_max,
             l_max,
             l_extra,
-            umbral
+            umbral,
+            lista_bloqueos
         ):
     edges_dict, nodes_dict, paths_dict, method_to_component, component_to_paths, component_adjacency, pending_components, component_to_cluster = setup(
         ruta_aristas, ruta_nodos, ruta_paths, l_extra
@@ -547,7 +570,7 @@ def generate_migration_plan(
         c_min, c_max, l_max, l_extra,
         pending_components, paths_dict,
         component_to_paths, component_adjacency, method_to_component,
-        component_to_cluster, umbral
+        component_to_cluster, umbral, lista_bloqueos
     )
     logger.info("Algoritmo finalizado")
 

@@ -23,6 +23,9 @@ def run_simulation_process(db: Session, sim_id: UUID):
     try:
         crud.update_simulation_status(db, sim_id, models.SimulationStatus.RUNNING)
 
+        bloqueos_db = db.query(models.BlockedComponents).filter_by(simulation_id=sim_id).all()
+        bloqueos_lista = [{"component_name": b.component_name, "stage_number": b.stage_number} for b in bloqueos_db]
+
         # 1. Ejecutar Algoritmo
         migration_plan = generate_migration_plan(
             ruta_nodos=sim.nodes_file.path,
@@ -30,7 +33,8 @@ def run_simulation_process(db: Session, sim_id: UUID):
             ruta_paths=sim.paths_file.path,
             c_min=sim.c_min, c_max=sim.c_max,
             l_max=sim.l_max, l_extra=sim.l_extra,
-            umbral=sim.threshold
+            umbral=sim.threshold,
+            lista_bloqueos=bloqueos_lista
         )
         
         crud.update_simulation_status(db, sim_id, models.SimulationStatus.PROCESSING)

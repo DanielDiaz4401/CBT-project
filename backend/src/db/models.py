@@ -64,6 +64,8 @@ class Simulation(Base):
     critical_paths = relationship("CriticalPath", back_populates="simulation", cascade="all, delete-orphan", lazy="select")
     component_mappings = relationship("ComponentToMethod", back_populates="simulation", cascade="all, delete-orphan")
 
+    blocked_components = relationship("BlockedComponents", back_populates="simulation", cascade="all, delete-orphan", lazy="select")
+
 # --- TABLAS DE RESULTADOS Y METADATOS ---
 
 class ComponentToMethod(Base):
@@ -127,3 +129,12 @@ class CriticalPathStage(Base):
     migrated_components = Column(PG_ARRAY(String))
     
     path = relationship("CriticalPath", back_populates="stage_details")
+
+class BlockedComponents(Base):
+    __tablename__ = "blocked_components"
+    id = Column(Integer, primary_key=True)
+    simulation_id = Column(PG_UUID(as_uuid=True), ForeignKey("simulations.id", ondelete="CASCADE"))
+    component_name = Column(String)
+    stage_number = Column(Integer)
+    
+    simulation = relationship("Simulation", back_populates="blocked_components")

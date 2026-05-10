@@ -79,6 +79,12 @@ class CriticalPathStepUpdate(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class BlockedComponents(BaseModel):
+    component_name: str
+    stage_number: int
+
+    model_config = ConfigDict(from_attributes=True)
+
 # --- 6. ARCHIVOS ---
 class SimulationFileSchema(BaseModel):
     id: int
