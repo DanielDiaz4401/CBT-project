@@ -35,6 +35,13 @@ class SimulationSummary(BaseModel):
     error_message: Optional[str] = None
     date: datetime = Field(alias="created_at") # Mapeamos created_at de la DB a 'date' para el front
 
+    l_extra: float
+    c_min: int
+    c_max: int
+    l_max: float
+    threshold: float
+    blocked_components: List[BlockedComponents] = []
+
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 # --- 4. SCHEMAS DE RESULTADOS (Listados rápidos) ---
