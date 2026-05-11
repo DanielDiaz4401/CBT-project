@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 
-export default function MigrationList({ migrations, onNewMigration, onViewDetail, onDeleteMigration }) {
+// Añadimos onCompare a los props recibidos
+export default function MigrationList({ migrations, onNewMigration, onViewDetail, onDeleteMigration, onCompare }) {
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
@@ -59,7 +60,8 @@ export default function MigrationList({ migrations, onNewMigration, onViewDetail
         <div className="flex gap-3">
           {isSelectMode && selectedIds.length >= 2 && (
             <button
-              onClick={() => alert(`Comparing migrations: ${selectedIds.join(', ')}`)}
+              // CAMBIO CLAVE: Quitamos el alert y llamamos a onCompare
+              onClick={() => onCompare(selectedIds)}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm shadow-lg hover:bg-blue-700 transition-all"
             >
               Compare Selected ({selectedIds.length})
@@ -80,7 +82,7 @@ export default function MigrationList({ migrations, onNewMigration, onViewDetail
         </div>
       </div>
 
-      {/* Grid de 5 Contadores */}
+      {/* Contadores */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total</p>
@@ -104,7 +106,7 @@ export default function MigrationList({ migrations, onNewMigration, onViewDetail
         </div>
       </div>
 
-      {/* Tabla con scroll interno y clases estándar de Tailwind */}
+      {/* Tabla corregida con clases estándar */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="max-h-150 overflow-y-auto">
           <table className="w-full text-left relative">
