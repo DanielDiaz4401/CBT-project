@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 
-export default function MigrationList({ migrations, onCloneMigration, onNewMigration, onViewDetail, onDeleteMigration }) {
+// Unificamos los props: onCloneMigration (Tuyo) y onCompare (Compañero)
+export default function MigrationList({ migrations, onCloneMigration, onNewMigration, onViewDetail, onDeleteMigration, onCompare }) {
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
 
-  // Contadores por estado
   const total = migrations.length;
   const completed = migrations.filter(m => m.status === 'completed').length;
   const running = migrations.filter(m => m.status === 'running').length;
@@ -29,14 +29,12 @@ export default function MigrationList({ migrations, onCloneMigration, onNewMigra
   const sortedMigrations = React.useMemo(() => {
     let sortableItems = [...migrations];
     sortableItems.sort((a, b) => {
-      // Manejo especial para la fecha (usamos created_at si existe, o date)
       if (sortConfig.key === 'date') {
         const dateA = new Date(a.created_at || a.date).getTime() || 0;
         const dateB = new Date(b.created_at || b.date).getTime() || 0;
         return sortConfig.direction === 'asc' ? dateA - dateB : dateB - dateA;
       }
 
-      // Ordenación estándar para texto (nombre, status)
       const valA = (a[sortConfig.key] || '').toString().toLowerCase();
       const valB = (b[sortConfig.key] || '').toString().toLowerCase();
       
@@ -62,7 +60,7 @@ export default function MigrationList({ migrations, onCloneMigration, onNewMigra
         <div className="flex gap-3">
           {isSelectMode && selectedIds.length >= 2 && (
             <button
-              onClick={() => alert(`Comparing migrations: ${selectedIds.join(', ')}`)}
+              onClick={() => onCompare(selectedIds)}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm shadow-lg hover:bg-blue-700 transition-all"
             >
               Compare Selected ({selectedIds.length})
@@ -83,7 +81,6 @@ export default function MigrationList({ migrations, onCloneMigration, onNewMigra
         </div>
       </div>
 
-      {/* Grid de 5 Contadores */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total</p>
@@ -98,16 +95,15 @@ export default function MigrationList({ migrations, onCloneMigration, onNewMigra
           <p className="text-2xl font-bold text-slate-900">{running}</p>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-amber-500">
-          <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1">Pending</p>
+          <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1">Failed</p>
           <p className="text-2xl font-bold text-slate-900">{pending}</p>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-red-500">
-          <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-1">Failed</p>
+          <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-1">Error</p>
           <p className="text-2xl font-bold text-slate-900">{failed}</p>
         </div>
       </div>
 
-      {/* Tabla con scroll interno y clases estándar de Tailwind */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="max-h-150 overflow-y-auto">
           <table className="w-full text-left relative">
@@ -215,11 +211,6 @@ export default function MigrationList({ migrations, onCloneMigration, onNewMigra
               ))}
             </tbody>
           </table>
-          {migrations.length === 0 && (
-            <div className="p-20 text-center text-slate-400">
-              No migrations found. Start a new one.
-            </div>
-          )}
         </div>
       </div>
     </div>

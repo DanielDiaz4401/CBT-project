@@ -3,6 +3,7 @@ import WelcomeScreen from './WelcomeScreen';
 import MigrationList from './MigrationList';
 import SetupModal from './SetupModal';
 import MigrationDetail from './MigrationDetail';
+import MigrationCompare from './MigrationCompare'; // 1. Importamos el nuevo componente
 
 const API_BASE = 'http://localhost:8000/simulations';
 
@@ -11,15 +12,20 @@ export default function Dashboard() {
   const [migrations, setMigrations] = useState([]);
   const [selectedMigration, setSelectedMigration] = useState(null);
   const [isCalculating, setIsCalculating] = useState(false);
+  
+  // Estados de tu código (Backend - Clonado y Modal)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [migrationTemplate, setMigrationTemplate] = useState(null);
+
+  // Estado del compañero (Frontend - Comparación)
+  const [selectedForCompare, setSelectedForCompare] = useState([]);
 
   const handleNewMigration = () => {
     setMigrationTemplate(null); // Limpio
     setIsModalOpen(true);
   };
 
-  // 1. Carregar dades inicials de la llista (simulations.json)
+  // 1. Carregar dades inicials de la llista
   useEffect(() => {
     fetch(API_BASE + '/')
       .then(res => res.json())
@@ -27,42 +33,36 @@ export default function Dashboard() {
       .catch(err => console.error("Error cargando lista:", err));
   }, []);
 
-  // 2. Guardar a LocalStorage
+  // 2. SSE para actualizaciones en tiempo real
   useEffect(() => {
     const sse = new EventSource(`${API_BASE}/stream`);
 
     sse.onmessage = (event) => {
       const update = JSON.parse(event.data);
-      console.log("Update de estado recibido:", update);
-
       setMigrations(prev => prev.map(m =>
         m.id === update.id ? { ...m, status: update.status } : m
       ));
 
-      // Si la simulación seleccionada se ha completado, actualizamos su estado
       if (selectedMigration && selectedMigration.id === update.id) {
         setSelectedMigration(prev => ({ ...prev, status: update.status }));
       }
     };
 
     sse.onerror = () => {
-      console.error("Error en conexión SSE. Reintentando...");
+      console.error("Error en conexión SSE.");
     };
 
     return () => sse.close();
   }, [selectedMigration]);
 
-  // 3. Funció de creació simulant el POST al backend
   const handleConfirmSetup = async (formData) => {
     setIsCalculating(true);
     try {
       const res = await fetch(`${API_BASE}/calculate`, {
         method: 'POST',
-        body: formData // Ya viene como FormData del SetupModal
+        body: formData 
       });
-
       if (!res.ok) throw new Error("Error en la creación");
-
       const newSim = await res.json();
       setMigrations(prev => [newSim, ...prev]);
       setIsModalOpen(false);
@@ -74,10 +74,15 @@ export default function Dashboard() {
   };
 
   const handleViewDetail = (migration) => {
-    console.log("Entrant al detall de:", migration.name);
-    console.log("Dades enviades al detall:", migration.result);
     setSelectedMigration(migration);
     setView('detail');
+  };
+
+  // 3. Función para activar la vista de comparación
+  const handleCompare = (ids) => {
+    const selected = migrations.filter(m => ids.includes(m.id));
+    setSelectedForCompare(selected);
+    setView('compare');
   };
 
   const handleDeleteMigration = async (id) => {
@@ -92,13 +97,10 @@ export default function Dashboard() {
   };
 
   const handleCloneMigration = (migration) => {
-    // Aquí podrías necesitar un fetch adicional si el objeto 'migration' 
-    // de la lista no trae todos los parámetros técnicos (l_max, c_min, etc.)
     setMigrationTemplate(migration);
     setIsModalOpen(true);
   };
 
-  // RENDERITZAT CONDICIONAL SEGUR (Cap canvi visual aquí)
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
       {view === 'welcome' && (
@@ -112,6 +114,15 @@ export default function Dashboard() {
           onCloneMigration={handleCloneMigration}
           onViewDetail={handleViewDetail}
           onDeleteMigration={handleDeleteMigration}
+          onCompare={handleCompare} 
+        />
+      )}
+
+      {/* 5. Nueva vista de comparación */}
+      {view === 'compare' && (
+        <MigrationCompare 
+          selectedMigrations={selectedForCompare} 
+          onBack={() => setView('list')} 
         />
       )}
 

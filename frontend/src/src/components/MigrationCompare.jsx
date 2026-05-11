@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { 
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  LineChart, Line, Legend, BarChart, Bar
+  AreaChart, Area, Legend, ReferenceLine
 } from 'recharts';
-import { ArrowLeft, Layers, Zap, Clock } from 'lucide-react';
+import { ArrowLeft, Layers, Zap, Clock, Settings } from 'lucide-react';
 
 export default function MigrationCompare({ selectedMigrations, onBack }) {
   const [comparisonData, setComparisonData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [extraStats, setExtraStats] = useState({});
 
-  // Colors per diferenciar les migracions
-  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'];
+  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
 
   useEffect(() => {
     const fetchAllData = async () => {
@@ -22,22 +22,35 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
           )
         );
 
-        // Busquem el màxim d'etapes per a l'eix X
         const maxStages = Math.max(...results.map(r => r.length));
+        const newStats = {};
         
-        // Formategem les dades per als gràfics
         const chartData = Array.from({ length: maxStages }, (_, i) => {
           const entry = { etapa: i };
           results.forEach((stages, idx) => {
-            const mName = selectedMigrations[idx].name;
             if (stages[i]) {
               entry[`latency_${idx}`] = stages[i].worst_critical_time;
-              entry[`migrated_${idx}`] = stages[i].migrated_components.length;
+              
+              // Lógica de acumulado igual que en VisualizeStages
+              const currentTotal = stages.slice(0, i + 1).reduce((acc, s) => acc + s.migrated_components.length, 0);
+              entry[`cumulative_${idx}`] = currentTotal;
+            }
+            
+            if (i === 0) {
+              const totalMigrated = stages.reduce((acc, s) => acc + s.migrated_components.length, 0);
+              const cMax = Number(selectedMigrations[idx].params?.c_max || 5);
+              const optimal = Math.ceil(totalMigrated / cMax);
+              const real = stages.length;
+              newStats[idx] = {
+                efficiency: real > 0 ? Math.min(100, Math.round((optimal / real) * 100)) : 0,
+                total: totalMigrated
+              };
             }
           });
           return entry;
         });
 
+        setExtraStats(newStats);
         setComparisonData(chartData);
       } catch (err) {
         console.error("Error comparant dades:", err);
@@ -46,93 +59,146 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
       }
     };
 
-    fetchAllData();
+    if (selectedMigrations.length > 0) fetchAllData();
   }, [selectedMigrations]);
 
-  if (loading) return <div className="p-20 text-center animate-pulse">Comparing data...</div>;
+  if (loading) return <div className="p-20 text-center animate-pulse font-bold text-slate-400">Comparing data...</div>;
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-50 p-8 font-sans">
+    <div className="flex flex-col min-h-screen bg-slate-50 p-8 font-sans text-slate-900">
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
-        <button onClick={onBack} className="p-2 hover:bg-white rounded-full transition-all border border-transparent hover:border-slate-200">
+        <button onClick={onBack} className="p-2 hover:bg-white rounded-full transition-all border border-slate-200 shadow-sm">
           <ArrowLeft size={24} />
         </button>
-        <h1 className="text-3xl font-bold text-slate-900">Compare Migrations</h1>
+        <h1 className="text-3xl font-black tracking-tight">COMPARE MIGRATIONS</h1>
       </div>
 
-      {/* 1. Resum ràpid de KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {selectedMigrations.map((m, idx) => (
-          <div key={m.id} className="bg-white p-6 rounded-3xl border-t-4 shadow-sm" style={{ borderTopColor: colors[idx % colors.length] }}>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{m.name}</p>
-            <div className="flex justify-between items-end">
+      {/* 1. GRID COMPARATIVO (Fijo a 4 columnas para que se vea como en tu foto 2) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+        {selectedMigrations.slice(0, 4).map((m, idx) => (
+          <div key={m.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            <div className="h-2 w-full" style={{ backgroundColor: colors[idx % colors.length] }}></div>
+            <div className="p-6 space-y-6 flex-1 flex flex-col">
               <div>
-                <p className="text-2xl font-black text-slate-900">{m.result?.total_stages || 'N/A'} <span className="text-xs text-slate-400">Stages</span></p>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Scenario {idx + 1}</p>
+                <h3 className="text-lg font-bold truncate text-slate-800">{m.name}</h3>
               </div>
-              <div className={`px-2 py-1 rounded text-[10px] font-bold text-white`} style={{ backgroundColor: colors[idx % colors.length] }}>
-                #{idx + 1}
+
+              {/* Paràmetres (Inputs) */}
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                <div className="flex items-center gap-2 mb-3 text-slate-400">
+                  <Settings size={14} />
+                  <span className="text-[10px] font-black uppercase">Parameters</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: 'C-MAX', val: m.params?.c_max },
+                    { label: 'L-MAX', val: `${m.params?.l_max}ms` },
+                    { label: 'THRSH', val: `${m.params?.umbral}%` },
+                    { label: 'EXTRA', val: `+${m.params?.l_extra}ms` }
+                  ].map((p, i) => (
+                    <div key={i}>
+                      <p className="text-[8px] font-black text-slate-400 uppercase leading-none mb-1">{p.label}</p>
+                      <p className="text-xs font-bold text-slate-700">{p.val || 'N/A'}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Resultats (KPIs) - Empujados al fondo para alineación */}
+              <div className="mt-auto pt-4 grid grid-cols-2 gap-4 border-t border-slate-50">
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-1 text-blue-500 mb-1">
+                    <Layers size={14} />
+                    <span className="text-[10px] font-black uppercase">Stages</span>
+                  </div>
+                  <p className="text-2xl font-black text-slate-900">{m.result?.total_stages || '?'}</p>
+                </div>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-1 text-amber-500 mb-1">
+                    <Zap size={14} />
+                    <span className="text-[10px] font-black uppercase">Efficiency</span>
+                  </div>
+                  <p className="text-2xl font-black text-amber-600">{extraStats[idx]?.efficiency}%</p>
+                </div>
               </div>
             </div>
           </div>
         ))}
+
+        {/* HUECOS VACÍOS (Opcional - Mantiene la estructura limpia) */}
+        {selectedMigrations.length < 4 && 
+          Array.from({ length: 4 - selectedMigrations.length }).map((_, i) => (
+            <div key={`empty-${i}`} className="hidden lg:flex flex-col border-2 border-dashed border-slate-200 rounded-3xl bg-slate-100/30 items-center justify-center p-6">
+              <p className="text-slate-300 text-[10px] font-black uppercase tracking-widest italic">Available Slot</p>
+            </div>
+          ))
+        }
       </div>
 
-      {/* 2. Gràfic de Latència Comparada*/}
-      <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm mb-8">
-        <div className="mb-6 flex items-center gap-3">
-          <Clock className="text-blue-500" />
-          <h3 className="font-black text-slate-800 uppercase tracking-tight">Latency Comparison</h3>
+      {/* 2. GRÀFICS (Iguales a VisualizeStages) */}
+      <div className="space-y-8">
+        {/* Latència - Usando AreaChart como en el visualizador individual */}
+        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+          <div className="mb-6 flex items-center gap-3 text-slate-400">
+            <Clock size={18} />
+            <h3 className="font-black uppercase text-xs tracking-widest">Latency Evolution</h3>
+          </div>
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={comparisonData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="etapa" tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                <YAxis unit="ms" tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 20px rgba(0,0,0,0.05)'}} />
+                <Legend verticalAlign="top" height={36} iconType="circle" />
+                {selectedMigrations.map((m, idx) => (
+                  <Area 
+                    key={m.id}
+                    type="monotone" 
+                    dataKey={`latency_${idx}`} 
+                    name={m.name} 
+                    stroke={colors[idx % colors.length]} 
+                    fill={colors[idx % colors.length]} 
+                    fillOpacity={0.05} 
+                    strokeWidth={3} 
+                  />
+                ))}
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className="h-80 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={comparisonData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="etapa" tick={{fontSize: 10}} />
-              <YAxis unit="ms" tick={{fontSize: 10}} />
-              <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} />
-              <Legend />
-              {selectedMigrations.map((m, idx) => (
-                <Line 
-                  key={m.id}
-                  type="monotone" 
-                  dataKey={`latency_${idx}`} 
-                  name={m.name} 
-                  stroke={colors[idx % colors.length]} 
-                  strokeWidth={3} 
-                  dot={false} 
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
 
-      {/* 3. Gràfic de Nodes Migrats per Etapa */}
-      <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
-        <div className="mb-6 flex items-center gap-3">
-          <Layers className="text-emerald-500" />
-          <h3 className="font-black text-slate-800 uppercase tracking-tight">Migration Velocity (Nodes per Stage)</h3>
-        </div>
-        <div className="h-80 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={comparisonData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="etapa" tick={{fontSize: 10}} />
-              <YAxis tick={{fontSize: 10}} />
-              <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} />
-              <Legend />
-              {selectedMigrations.map((m, idx) => (
-                <Bar 
-                  key={m.id}
-                  dataKey={`migrated_${idx}`} 
-                  name={m.name} 
-                  fill={colors[idx % colors.length]} 
-                  radius={[4, 4, 0, 0]}
-                />
-              ))}
-            </BarChart>
-          </ResponsiveContainer>
+        {/* Progreso Acumulado - Usando AreaChart (type="stepAfter") como en el visualizador individual */}
+        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+          <div className="mb-6 flex items-center gap-3 text-slate-400">
+            <Layers size={18} />
+            <h3 className="font-black uppercase text-xs tracking-widest">Migration Status (Cumulative)</h3>
+          </div>
+          <div className="h-80 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={comparisonData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="etapa" tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                <YAxis tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 20px rgba(0,0,0,0.05)'}} />
+                <Legend verticalAlign="top" height={36} iconType="circle" />
+                {selectedMigrations.map((m, idx) => (
+                  <Area 
+                    key={m.id}
+                    type="stepAfter" 
+                    dataKey={`cumulative_${idx}`} 
+                    name={m.name} 
+                    stroke={colors[idx % colors.length]} 
+                    fill={colors[idx % colors.length]} 
+                    fillOpacity={0.05} 
+                    strokeWidth={3} 
+                  />
+                ))}
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
     </div>
