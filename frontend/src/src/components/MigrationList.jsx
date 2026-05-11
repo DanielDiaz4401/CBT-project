@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 
-// Unificamos los props: onCloneMigration (Tuyo) y onCompare (Compañero)
-export default function MigrationList({ migrations, onCloneMigration, onNewMigration, onViewDetail, onDeleteMigration, onCompare }) {
+export default function MigrationList({ migrations, onNewMigration, onViewDetail, onDeleteMigration }) {
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
@@ -60,7 +59,7 @@ export default function MigrationList({ migrations, onCloneMigration, onNewMigra
         <div className="flex gap-3">
           {isSelectMode && selectedIds.length >= 2 && (
             <button
-              onClick={() => onCompare(selectedIds)}
+              onClick={() => alert(`Comparing migrations: ${selectedIds.join(', ')}`)}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm shadow-lg hover:bg-blue-700 transition-all"
             >
               Compare Selected ({selectedIds.length})
@@ -81,6 +80,7 @@ export default function MigrationList({ migrations, onCloneMigration, onNewMigra
         </div>
       </div>
 
+      {/* Grid de 5 Contadores */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total</p>
@@ -104,6 +104,7 @@ export default function MigrationList({ migrations, onCloneMigration, onNewMigra
         </div>
       </div>
 
+      {/* Tabla con scroll interno y clases estándar de Tailwind */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="max-h-150 overflow-y-auto">
           <table className="w-full text-left relative">
