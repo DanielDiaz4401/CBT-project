@@ -62,45 +62,54 @@ export default function SetupModal({ onClose, onConfirm, isCalculating }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-150 overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl flex flex-col max-h-[90vh]">
         
         {/* Header */}
-        <div className="flex-none px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-white">
-          <h2 className="text-2xl font-bold text-slate-800">Migration Setup</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl transition-colors">✕</button>
+        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800">Migration Setup</h2>
+            <p className="text-slate-400 text-sm">Configure your project data and algorithm constraints</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors">✕</button>
         </div>
 
-        {/* Cuerpo del modal */}
-        <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-8 overflow-hidden items-start h-full">
+        {/* Cuerpo del modal - Flex Layout para igualdad de columnas */}
+        <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
           
           {/* 1. PROJECT & DATA */}
-          <div className="flex flex-col h-full overflow-hidden space-y-6">
-            <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wider">1. Project & Data</h3>
-            <div className="flex-none">
-              <label className="block text-sm font-bold text-slate-700 mb-2">Project Name</label>
+          <div className="flex-1 p-8 border-r border-slate-100 flex flex-col gap-6">
+            <h3 className="text-xs font-bold text-blue-600 uppercase tracking-widest">1. Project & Data</h3>
+            
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-500 uppercase">Project Name</label>
               <input 
                 type="text" 
                 value={migrationName}
                 onChange={(e) => setMigrationName(e.target.value)}
                 placeholder="e.g. Core Banking Migration"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm bg-slate-50/50"
               />
             </div>
-            <div className="space-y-3 overflow-y-auto pr-2">
+
+            <div className="space-y-3">
+              <label className="block text-xs font-bold text-slate-500 uppercase">Input Files (.csv)</label>
               {['nodes', 'edges', 'paths'].map((type) => (
                 <div 
                   key={type} 
                   onClick={() => fileInputs[type].current.click()} 
-                  className={`cursor-pointer flex items-center p-3 border border-dashed rounded-xl transition-all ${
-                    files[type] ? 'border-emerald-300 bg-emerald-50' : 'border-slate-300 hover:border-blue-400 hover:bg-blue-50'
+                  className={`group cursor-pointer flex items-center p-4 border-2 border-dashed rounded-xl transition-all ${
+                    files[type] ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50/30'
                   }`}
                 >
                   <div className="flex-1">
                     <p className="text-xs font-bold text-slate-700 capitalize">{type} File</p>
-                    <p className={`text-[10px] truncate ${files[type] ? 'text-emerald-600' : 'text-slate-400'}`}>
-                      {files[type] ? files[type].name : 'Click to upload .csv'}
+                    <p className={`text-[11px] truncate ${files[type] ? 'text-emerald-600' : 'text-slate-400'}`}>
+                      {files[type] ? files[type].name : 'Click to upload'}
                     </p>
+                  </div>
+                  <div className={`text-lg ${files[type] ? 'text-emerald-500' : 'text-slate-300 group-hover:text-blue-400'}`}>
+                    {files[type] ? '✓' : '+'}
                   </div>
                   <input type="file" ref={fileInputs[type]} className="hidden" onChange={handleFileChange(type)} accept=".csv" />
                 </div>
@@ -109,45 +118,53 @@ export default function SetupModal({ onClose, onConfirm, isCalculating }) {
           </div>
 
           {/* 2. NODE CONSTRAINTS */}
-          <div className="flex flex-col h-full overflow-hidden space-y-4 border-l border-r border-slate-100 px-4">
-            <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wider">2. Node Constraints</h3>
+          <div className="flex-1 p-8 border-r border-slate-100 flex flex-col bg-slate-50/30">
+            <h3 className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-6">2. Node Constraints</h3>
             
-            <div className="flex-none bg-slate-50 p-4 rounded-xl space-y-3 border border-slate-200">
-              <div className="grid grid-cols-2 gap-2">
-                <input 
-                  type="text" 
-                  placeholder="Node ID"
-                  value={newNodeId}
-                  onChange={(e) => setNewNodeId(e.target.value)}
-                  className="p-2 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <input 
-                  type="number" 
-                  placeholder="Stage"
-                  value={newStage}
-                  onChange={(e) => setNewStage(e.target.value)}
-                  className="p-2 text-xs border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-                />
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3 mb-6">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 ml-1">NODE ID</span>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: N-102"
+                    value={newNodeId}
+                    onChange={(e) => setNewNodeId(e.target.value)}
+                    className="w-full p-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold text-slate-400 ml-1">STAGE</span>
+                  <input 
+                    type="number" 
+                    placeholder="1-10"
+                    value={newStage}
+                    onChange={(e) => setNewStage(e.target.value)}
+                    className="w-full p-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
+                  />
+                </div>
               </div>
               <button 
                 onClick={addConstraint}
-                className="w-full py-2.5 bg-slate-800 text-white text-[10px] font-black rounded-lg hover:bg-slate-900 transition-all uppercase tracking-widest leading-loose"
+                className="w-full py-3 bg-slate-800 text-white text-[10px] font-bold rounded-lg hover:bg-slate-900 transition-all uppercase tracking-widest"
               >
-                + CREATE NEW OBJECT
+                Add Constraint
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto pr-2 space-y-2 pb-4">
+            <div className="flex-1 overflow-y-auto pr-2 space-y-2 min-h-[200px]">
               {constraints.length === 0 ? (
-                <p className="text-[10px] text-slate-400 text-center py-10 italic">No node constraints defined</p>
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-100 rounded-xl">
+                  <p className="text-xs italic">No constraints added yet</p>
+                </div>
               ) : (
                 constraints.map((c, i) => (
-                  <div key={i} className="flex items-center justify-between bg-white border border-slate-100 p-2 rounded-lg shadow-sm">
-                    <div className="flex gap-2 items-center">
-                      <span className="text-[9px] font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100">ID: {c.component_name}</span>
-                      <span className="text-[9px] font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200">STAGE: {c.stage_number}</span>
+                  <div key={i} className="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-xl shadow-sm animate-in fade-in slide-in-from-bottom-1">
+                    <div className="flex gap-3 items-center">
+                      <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md border border-blue-100">ID: {c.component_name}</span>
+                      <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md border border-slate-200">STAGE: {c.stage_number}</span>
                     </div>
-                    <button onClick={() => removeConstraint(i)} className="text-slate-300 hover:text-red-500 transition-colors px-1">✕</button>
+                    <button onClick={() => removeConstraint(i)} className="text-slate-300 hover:text-red-500 transition-colors p-1">✕</button>
                   </div>
                 ))
               )}
@@ -155,51 +172,54 @@ export default function SetupModal({ onClose, onConfirm, isCalculating }) {
           </div>
 
           {/* 3. ALGORITHM PARAMETERS */}
-          <div className="flex flex-col h-full overflow-hidden space-y-5 bg-slate-50 p-6 rounded-2xl">
-            <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wider">3. Algorithm</h3>
-            
-            <div className="flex-1 overflow-y-auto pr-1">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">C_MIN</label>
-                  <input type="number" value={params.c_min} onChange={(e) => setParams({...params, c_min: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+          <div className="flex-1 p-8 flex flex-col justify-between">
+            <div className="space-y-6">
+              <h3 className="text-xs font-bold text-blue-600 uppercase tracking-widest">3. Algorithm</h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase">C_MIN</label>
+                  <input type="number" value={params.c_min} onChange={(e) => setParams({...params, c_min: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" />
                 </div>
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">C_MAX</label>
-                  <input type="number" value={params.c_max} onChange={(e) => setParams({...params, c_max: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase">C_MAX</label>
+                  <input type="number" value={params.c_max} onChange={(e) => setParams({...params, c_max: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" />
                 </div>
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">L_MIN (ms)</label>
-                  <input type="number" value={params.l_max} onChange={(e) => setParams({...params, l_max: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase">L_MIN (ms)</label>
+                  <input type="number" value={params.l_max} onChange={(e) => setParams({...params, l_max: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" />
                 </div>
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">L_EXTRA (ms)</label>
-                  <input type="number" value={params.l_extra} onChange={(e) => setParams({...params, l_extra: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase">L_EXTRA (ms)</label>
+                  <input type="number" value={params.l_extra} onChange={(e) => setParams({...params, l_extra: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" />
                 </div>
               </div>
-              <div className="mt-4">
-                <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Threshold (%)</label>
+
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase">Threshold (%)</label>
                 <div className="relative flex items-center">
                   <input 
                     type="number" 
                     value={params.umbral} 
                     onChange={(e) => setParams({...params, umbral: e.target.value})} 
-                    className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 pr-8" 
+                    className="w-full p-3 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 pr-10" 
                   />
-                  <span className="absolute right-3 text-slate-400 text-xs font-bold">%</span>
+                  <span className="absolute right-4 text-slate-400 text-sm font-bold">%</span>
                 </div>
               </div>
             </div>
 
-            <div className="flex-none pt-4 space-y-3">
+            <div className="pt-8 space-y-3">
               <button 
                 onClick={handleSubmit}
                 disabled={isCalculating}
-                className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-all disabled:opacity-50"
+                className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all disabled:opacity-50 active:scale-[0.98]"
               >
                 {isCalculating ? 'Processing...' : 'Start Migration'}
               </button>
-              <button onClick={onClose} className="w-full py-2 text-slate-400 text-xs font-medium hover:text-slate-600 transition-colors">Back to Dashboard</button>
+              <button onClick={onClose} className="w-full py-2 text-slate-400 text-xs font-semibold hover:text-slate-600 transition-colors uppercase tracking-widest">
+                Cancel Process
+              </button>
             </div>
           </div>
 

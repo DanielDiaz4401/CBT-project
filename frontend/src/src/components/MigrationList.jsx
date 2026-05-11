@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 
-export default function MigrationList({ migrations, onNewMigration, onViewDetail, onDeleteMigration }) {
+// Añadimos onCompare a los props recibidos
+export default function MigrationList({ migrations, onNewMigration, onViewDetail, onDeleteMigration, onCompare }) {
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
 
-  // Contadores por estado
   const total = migrations.length;
   const completed = migrations.filter(m => m.status === 'completed').length;
   const running = migrations.filter(m => m.status === 'running').length;
@@ -28,7 +28,8 @@ export default function MigrationList({ migrations, onNewMigration, onViewDetail
         <div className="flex gap-3">
           {isSelectMode && selectedIds.length >= 2 && (
             <button
-              onClick={() => alert(`Comparing migrations: ${selectedIds.join(', ')}`)}
+              // CAMBIO CLAVE: Quitamos el alert y llamamos a onCompare
+              onClick={() => onCompare(selectedIds)}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm shadow-lg hover:bg-blue-700 transition-all"
             >
               Compare Selected ({selectedIds.length})
@@ -49,7 +50,7 @@ export default function MigrationList({ migrations, onNewMigration, onViewDetail
         </div>
       </div>
 
-      {/* Grid de 5 Contadores */}
+      {/* Contadores */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total</p>
@@ -64,16 +65,16 @@ export default function MigrationList({ migrations, onNewMigration, onViewDetail
           <p className="text-2xl font-bold text-slate-900">{running}</p>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-amber-500">
-          <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1">Pending</p>
+          <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1">Failed</p>
           <p className="text-2xl font-bold text-slate-900">{pending}</p>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-red-500">
-          <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-1">Failed</p>
+          <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-1">Error</p>
           <p className="text-2xl font-bold text-slate-900">{failed}</p>
         </div>
       </div>
 
-      {/* Tabla con scroll interno y clases estándar de Tailwind */}
+      {/* Tabla corregida con clases estándar */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="max-h-150 overflow-y-auto">
           <table className="w-full text-left relative">
@@ -142,11 +143,6 @@ export default function MigrationList({ migrations, onNewMigration, onViewDetail
               ))}
             </tbody>
           </table>
-          {migrations.length === 0 && (
-            <div className="p-20 text-center text-slate-400">
-              No migrations found. Start a new one.
-            </div>
-          )}
         </div>
       </div>
     </div>

@@ -49,30 +49,32 @@ export default function VisualizeGraph({ migration }) {
       const data = await res.json();
       setSkeleton(data);
       setStageIdx(0);
-      // Cargamos la info de aristas del primer hito
-      const firstStage = milestones.find(p => p.path_number === Number(num))?.affected_stages[0] || 0;
+      
+      // Busquem els hitos específics d'aquest path per carregar la primera etapa
+      const pathInfo = milestones.find(p => p.path_number === Number(num));
+      const firstStage = pathInfo?.affected_stages[0] || 0;
       loadStepEdges(firstStage);
+    } catch (err) {
+      console.error("Error loading skeleton:", err);
     } finally {
       setLoading(false);
     }
   };
 
   const loadStepEdges = (stageNum) => {
-    // Este endpoint ahora solo nos dice qué aristas son críticas/extra en ESTA etapa
     fetch(`${API_BASE}/get_critical_path_step/${migration.id}/${stageNum}`)
       .then(res => res.json())
       .then(data => setCurrentStepEdges(data));
   };
 
-  // 2. LÓGICA DE ACUMULACIÓN (Memoizada para rendimiento)
+  // 2. LÓGICA DE ACUMULACIÓN
   const cloudNodes = useMemo(() => {
-    if (!milestones.length || pathNumber === '' || !allStages.length) return new Set();
+    if (!milestones.length || pathNumber === '' || !allStages.length || !skeleton) return new Set();
     
     const pathInfo = milestones.find(p => p.path_number === Number(pathNumber));
-    const currentStageLimit = pathInfo?.affected_stages[stageIdx] || 0;
+    const currentStageLimit = pathInfo?.affected_stages[stageIdx] ?? 0;
 
-    // Acumulamos todos los componentes migrados desde la etapa 0 hasta la actual
-    const accumulated = new Set(skeleton?.initial_cloud_nodes || []);
+    const accumulated = new Set(skeleton.initial_cloud_nodes || []);
     allStages.forEach((stage, idx) => {
       if (idx <= currentStageLimit) {
         stage.migrated_components.forEach(node => accumulated.add(node));
@@ -82,8 +84,10 @@ export default function VisualizeGraph({ migration }) {
   }, [allStages, stageIdx, pathNumber, milestones, skeleton]);
 
   const handleNavigate = (dir) => {
-    const nextIdx = stageIdx + dir;
     const pathInfo = milestones.find(p => p.path_number === Number(pathNumber));
+    if (!pathInfo) return;
+    
+    const nextIdx = stageIdx + dir;
     if (nextIdx >= 0 && nextIdx < pathInfo.affected_stages.length) {
       setStageIdx(nextIdx);
       loadStepEdges(pathInfo.affected_stages[nextIdx]);
@@ -141,7 +145,7 @@ export default function VisualizeGraph({ migration }) {
               <g key={id} transform={`translate(${pos.x}, ${pos.y})`}>
                 <circle 
                   r="28" 
-                  fill={isCloud ? "#3b82f6" : "#94a3b8"} // Azul si es Cloud, Gris si es On-Prem
+                  fill={isCloud ? "#3b82f6" : "#94a3b8"}
                   stroke="white" strokeWidth="4"
                   className="transition-colors duration-700 shadow-2xl cursor-pointer hover:stroke-slate-800"
                 />
@@ -163,21 +167,29 @@ export default function VisualizeGraph({ migration }) {
   return (
     <div className="flex flex-col h-full bg-slate-50 relative font-sans overflow-hidden select-none" ref={containerRef}>
       
-      {/* FLOATING HEADER: PATH SELECTOR & ZOOM CONTROLS */}
+      {/* FLOATING HEADER: PATH INPUT & ZOOM CONTROLS */}
       <div className="absolute top-6 left-6 right-6 flex justify-between items-start z-10 pointer-events-none">
         
-        {/* Lado Izquierdo: Selector y Leyenda */}
+        {/* Lado Izquierdo: Input de Path y Leyenda */}
         <div className="flex flex-col gap-4 pointer-events-auto">
-          <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-lg border border-slate-200/60 flex items-center gap-4">
-            <div className="flex flex-col">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Select Path</label>
-              <select 
-                value={pathNumber} 
-                onChange={(e) => { setPathNumber(e.target.value); loadSkeleton(Number(e.target.value)); }}
-                className="px-4 py-2 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 cursor-pointer min-w-[150px] transition-all"
-              >
-                {milestones.map(p => <option key={p.path_number} value={p.path_number}>Path #{p.path_number}</option>)}
-              </select>
+          <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-lg border border-slate-200/60 flex flex-col">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Path Number</label>
+            <div className="flex items-center gap-3">
+              <input 
+                type="number"
+                value={pathNumber}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setPathNumber(val);
+                  const exists = milestones.some(p => p.path_number === Number(val));
+                  if (exists) loadSkeleton(Number(val));
+                }}
+                className="w-20 px-3 py-2 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 transition-all"
+                placeholder="#"
+              />
+              <span className="text-[10px] font-bold text-slate-400 uppercase">
+                / {milestones.length > 0 ? milestones[milestones.length - 1].path_number : '0'}
+              </span>
             </div>
           </div>
 
@@ -217,19 +229,15 @@ export default function VisualizeGraph({ migration }) {
         onMouseLeave={() => setIsDragging(false)}
       >
         <svg className="w-full h-full absolute inset-0 pointer-events-none">
-          {/* Grid Background para aspecto técnico */}
           <defs>
             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
               <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#cbd5e1" strokeWidth="0.5" strokeOpacity="0.4"/>
             </pattern>
           </defs>
           <rect width="100%" height="100%" fill="url(#grid)" />
-          
-          {/* El renderizado de los nodos */}
           {renderGraph()}
         </svg>
 
-        {/* Loading Spinner Overlap */}
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-sm z-30">
             <div className="flex flex-col items-center gap-4">
@@ -240,15 +248,14 @@ export default function VisualizeGraph({ migration }) {
         )}
       </div>
 
-      {/* FLOATING BOTTOM NAVIGATION (TIME MACHINE) */}
+      {/* FLOATING BOTTOM NAVIGATION */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20">
         <div className="bg-white/95 backdrop-blur-xl px-8 py-5 rounded-full shadow-2xl border border-slate-200/60 flex items-center gap-10">
           
-          {/* Botón Previous */}
           <button 
             onClick={() => handleNavigate(-1)} 
             disabled={stageIdx === 0} 
-            className="group flex items-center gap-3 px-6 py-3 bg-slate-50 border border-slate-200 rounded-full hover:bg-slate-100 hover:border-slate-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            className="group flex items-center gap-3 px-6 py-3 bg-slate-50 border border-slate-200 rounded-full hover:bg-slate-100 disabled:opacity-30 transition-all"
           >
             <div className="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm text-slate-500 group-hover:text-slate-900 transition-colors">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7"/></svg>
@@ -256,7 +263,6 @@ export default function VisualizeGraph({ migration }) {
             <span className="font-black text-slate-700 uppercase tracking-widest text-xs hidden md:block">Previous</span>
           </button>
 
-          {/* Display Central del Hito */}
           <div className="flex flex-col items-center min-w-[140px]">
             <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">Current Stage</span>
             <span className="text-3xl font-black text-slate-900 leading-none">
@@ -264,21 +270,18 @@ export default function VisualizeGraph({ migration }) {
             </span>
           </div>
 
-          {/* Botón Next */}
           <button 
             onClick={() => handleNavigate(1)} 
-            disabled={stageIdx >= (milestones.find(p => p.path_number === Number(pathNumber))?.affected_stages.length - 1)} 
-            className="group flex items-center gap-3 px-6 py-3 bg-blue-600 rounded-full hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed shadow-lg shadow-blue-200 transition-all"
+            disabled={!milestones.find(p => p.path_number === Number(pathNumber)) || stageIdx >= (milestones.find(p => p.path_number === Number(pathNumber))?.affected_stages.length - 1)} 
+            className="group flex items-center gap-3 px-6 py-3 bg-blue-600 rounded-full hover:bg-blue-700 disabled:opacity-30 shadow-lg shadow-blue-200 transition-all"
           >
             <span className="font-black text-white uppercase tracking-widest text-xs hidden md:block">Next Change</span>
             <div className="w-8 h-8 flex items-center justify-center bg-white/20 rounded-full text-white group-hover:bg-white group-hover:text-blue-600 transition-colors">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"/></svg>
             </div>
           </button>
-
         </div>
       </div>
-
     </div>
   );
 }
