@@ -26,6 +26,13 @@ class SimulationCreate(BaseModel):
     l_max: float
     threshold: float
 
+class BlockedComponents(BaseModel):
+    component_name: str
+    stage_number: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # --- 3. SCHEMAS DE RESUMEN (Para /simulations/ y /calculate) ---
 class SimulationSummary(BaseModel):
     """El 'punto intermedio' que acordamos para listas y creación"""
@@ -83,12 +90,6 @@ class CriticalPathStepUpdate(BaseModel):
     newly_migrated_nodes: List[str]
     worst_path_edges: List[Tuple[str, str]]
     extra_latency_edges: List[Tuple[str, str]]
-
-    model_config = ConfigDict(from_attributes=True)
-
-class BlockedComponents(BaseModel):
-    component_name: str
-    stage_number: int
 
     model_config = ConfigDict(from_attributes=True)
 

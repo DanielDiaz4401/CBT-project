@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
+from typing import List, Optional
 
 from app.db import crud, session
 from app.schemas import migration as schemas
@@ -42,22 +43,35 @@ async def create_simulation(
     c_max: int = Form(...),
     l_max: float = Form(...),
     threshold: float = Form(...),
-    blocked_components: str = Form([]),
-    nodes_file: UploadFile = File(...),
-    edges_file: UploadFile = File(...),
-    paths_file: UploadFile = File(...),
+    blocked_components: str = Form("[]"),
+
+    nodes_file: Optional[UploadFile] = File(None),
+    edges_file: Optional[UploadFile] = File(None),
+    paths_file: Optional[UploadFile] = File(None),
+
+    base_sim_id: Optional[str]=Form(None),
     db: Session = Depends(session.get_db)
 ):
     """Crea la simulación, procesa archivos y lanza el algoritmo en background."""
-    # Leer archivos
-    n_content = await nodes_file.read()
-    e_content = await edges_file.read()
-    p_content = await paths_file.read()
+    # Lógica de creación de archivos
+    if base_sim_id:
+        base_sim = crud.get_simulation(db, UUID(base_sim_id))
+        if not base_sim:
+            raise HTTPException(status_code=404, detail="Simulación base no encontrada")
+        nodes_id = base_sim.nodes_file_id
+        edges_id = base_sim.edges_file_id
+        paths_id = base_sim.paths_file_id
+    else:
+        if not nodes_file or not edges_file or not paths_file:
+            raise HTTPException(status_code=400, detail="Faltan archivos para la nueva simulación")
+        
+        n_content = await nodes_file.read()
+        e_content = await edges_file.read()
+        p_content = await paths_file.read()
 
-    # Deduplicación y guardado
-    f_nodes = crud.get_or_create_file(db, nodes_file.filename, n_content)
-    f_edges = crud.get_or_create_file(db, edges_file.filename, e_content)
-    f_paths = crud.get_or_create_file(db, paths_file.filename, p_content)
+        nodes_id = crud.get_or_create_file(db, nodes_file.filename, n_content).id
+        edges_id = crud.get_or_create_file(db, edges_file.filename, e_content).id
+        paths_id = crud.get_or_create_file(db, paths_file.filename, p_content).id
 
     # Parseo del JSON del frontend
     try:
@@ -71,7 +85,7 @@ async def create_simulation(
     )
 
     new_sim = crud.create_simulation(
-            db, sim_data, f_nodes.id, f_edges.id, f_paths.id, blocked_comps_list
+            db, sim_data, nodes_id, edges_id, paths_id, blocked_comps_list
     )
     
     # Lanzar proceso

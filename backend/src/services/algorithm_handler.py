@@ -21,6 +21,15 @@ def run_simulation_process(db: Session, sim_id: UUID):
     if not sim: return
 
     try:
+        ruta_nodos = sim.nodes_file.path
+        ruta_aristas = sim.edges_file.path
+        ruta_paths = sim.paths_file.path
+        
+        c_min = sim.c_min
+        c_max = sim.c_max
+        l_max = sim.l_max
+        l_extra = sim.l_extra
+        threshold = sim.threshold
         crud.update_simulation_status(db, sim_id, models.SimulationStatus.RUNNING)
 
         bloqueos_db = db.query(models.BlockedComponents).filter_by(simulation_id=sim_id).all()
@@ -28,14 +37,18 @@ def run_simulation_process(db: Session, sim_id: UUID):
 
         # 1. Ejecutar Algoritmo
         migration_plan = generate_migration_plan(
-            ruta_nodos=sim.nodes_file.path,
-            ruta_aristas=sim.edges_file.path,
-            ruta_paths=sim.paths_file.path,
-            c_min=sim.c_min, c_max=sim.c_max,
-            l_max=sim.l_max, l_extra=sim.l_extra,
-            umbral=sim.threshold,
+            ruta_nodos=ruta_nodos,
+            ruta_aristas=ruta_aristas,
+            ruta_paths=ruta_paths,
+            c_min=c_min, c_max=c_max,
+            l_max=l_max, l_extra=l_extra,
+            umbral=threshold,
             lista_bloqueos=bloqueos_lista
         )
+
+        if not crud.update_simulation_status(db, sim_id, models.SimulationStatus.PROCESSING):
+            logger.error(f"La simulación {sim_id} fue eliminada por el usuario. Abortando guardado.")
+            return
         
         crud.update_simulation_status(db, sim_id, models.SimulationStatus.PROCESSING)
         plan = to_serializable(migration_plan)

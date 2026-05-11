@@ -1,17 +1,22 @@
 import React, { useState, useRef } from 'react';
 
-export default function SetupModal({ onClose, onConfirm, isCalculating }) {
-  const [migrationName, setMigrationName] = useState('');
+export default function SetupModal({ onClose, onConfirm, isCalculating, templateData }) {
+  const [migrationName, setMigrationName] = useState(
+    templateData ? `${templateData.name} (Copy)` : ''
+  );
   const [files, setFiles] = useState({ edges: null, nodes: null, paths: null });
   const [params, setParams] = useState({ 
-    c_min: 1, 
-    c_max: 5, 
-    l_max: 150, 
-    l_extra: 30,
-    umbral: 10 
+    c_min: templateData?.c_min ?? 1, 
+    c_max: templateData?.c_max ?? 5, 
+    l_max: templateData?.l_max ?? 150, 
+    l_extra: templateData?.l_extra ?? 30,
+    umbral: templateData?.threshold ?? 10
   });
 
-  const [constraints, setConstraints] = useState([]);
+  const [constraints, setConstraints] = useState(
+    templateData?.blocked_components ? [...templateData.blocked_components] : []
+  );
+
   const [newNodeId, setNewNodeId] = useState('');
   const [newStage, setNewStage] = useState('');
 
@@ -40,25 +45,37 @@ export default function SetupModal({ onClose, onConfirm, isCalculating }) {
   };
 
   const handleSubmit = (e) => {
-    if (e) e.preventDefault();
-    if (!migrationName || !files.nodes || !files.edges || !files.paths) {
-      alert("Por favor, rellena el nombre y sube los 3 archivos CSV.");
-      return;
+    e.preventDefault();
+
+    if (!templateData && (!files.edges || !files.nodes || !files.paths)) {
+        alert("Please upload all required files.");
+        return;
     }
 
     const formData = new FormData();
-    formData.append('name', migrationName);
-    formData.append('nodes_file', files.nodes);
-    formData.append('edges_file', files.edges);
-    formData.append('paths_file', files.paths);
-    formData.append('c_min', params.c_min);
-    formData.append('c_max', params.c_max);
-    formData.append('l_max', params.l_max);
-    formData.append('l_extra', params.l_extra);
-    formData.append('threshold', params.umbral);
-    formData.append('blocked_components', JSON.stringify(constraints));
+    formData.append("name", migrationName);
+    formData.append("l_extra", params.l_extra);
+    formData.append("c_min", params.c_min);
+    formData.append("c_max", params.c_max);
+    formData.append("l_max", params.l_max);
+    formData.append("threshold", params.umbral);
+    formData.append("blocked_components", JSON.stringify(constraints));
 
-    onConfirm(formData);
+    if (templateData) {
+        // MODO CLON: Mandamos el ID de la simulación base
+        formData.append("base_sim_id", templateData.id);
+    } else {
+        // MODO NUEVO: Mandamos los archivos físicos
+        formData.append("nodes_file", files.nodes);
+        formData.append("edges_file", files.edges);
+        formData.append("paths_file", files.paths);
+    }
+
+    try {
+        onConfirm(formData); // Tu función que hace el fetch
+    } catch (error) {
+        console.error(error);
+    }
   };
 
   return (
@@ -87,24 +104,46 @@ export default function SetupModal({ onClose, onConfirm, isCalculating }) {
                 className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
               />
             </div>
-            <div className="space-y-3 overflow-y-auto pr-2">
-              {['nodes', 'edges', 'paths'].map((type) => (
-                <div 
-                  key={type} 
-                  onClick={() => fileInputs[type].current.click()} 
-                  className={`cursor-pointer flex items-center p-3 border border-dashed rounded-xl transition-all ${
-                    files[type] ? 'border-emerald-300 bg-emerald-50' : 'border-slate-300 hover:border-blue-400 hover:bg-blue-50'
-                  }`}
-                >
-                  <div className="flex-1">
-                    <p className="text-xs font-bold text-slate-700 capitalize">{type} File</p>
-                    <p className={`text-[10px] truncate ${files[type] ? 'text-emerald-600' : 'text-slate-400'}`}>
-                      {files[type] ? files[type].name : 'Click to upload .csv'}
-                    </p>
+            {/* Sección de Archivos en SetupModal.jsx */}
+            <div className="space-y-4 border-b border-slate-100 pb-6">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                Input Data
+              </h3>
+
+              {templateData ? (
+                /* MODO CLON: Mensaje visual de archivos vinculados */
+                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center gap-3">
+                  <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                    </svg>
                   </div>
-                  <input type="file" ref={fileInputs[type]} className="hidden" onChange={handleFileChange(type)} accept=".csv" />
+                  <div>
+                    <p className="text-sm font-bold text-emerald-900">Archivos vinculados</p>
+                    <p className="text-xs text-emerald-700">Se usarán los archivos de la simulación base.</p>
+                  </div>
                 </div>
-              ))}
+              ) : (
+                /* MODO NUEVO: Los inputs de archivo de siempre */
+                <div className="space-y-3 overflow-y-auto pr-2">
+                  {['nodes', 'edges', 'paths'].map((type) => (
+                    <div
+                      key={type}
+                      onClick={() => fileInputs[type].current.click()}
+                      className={`cursor-pointer flex items-center p-3 border border-dashed rounded-xl transition-all ${files[type] ? 'border-emerald-300 bg-emerald-50' : 'border-slate-300 hover:border-blue-400 hover:bg-blue-50'
+                        }`}
+                    >
+                      <div className="flex-1">
+                        <p className="text-xs font-bold text-slate-700 capitalize">{type} File</p>
+                        <p className={`text-[10px] truncate ${files[type] ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          {files[type] ? files[type].name : 'Click to upload .csv'}
+                        </p>
+                      </div>
+                      <input type="file" ref={fileInputs[type]} className="hidden" onChange={handleFileChange(type)} accept=".csv" />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

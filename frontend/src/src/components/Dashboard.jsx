@@ -9,9 +9,15 @@ const API_BASE = 'http://localhost:8000/simulations';
 export default function Dashboard() {
   const [view, setView] = useState('welcome');
   const [migrations, setMigrations] = useState([]);
-  const [showSetup, setShowSetup] = useState(false);
   const [selectedMigration, setSelectedMigration] = useState(null);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [migrationTemplate, setMigrationTemplate] = useState(null);
+
+  const handleNewMigration = () => {
+    setMigrationTemplate(null); // Limpio
+    setIsModalOpen(true);
+  };
 
   // 1. Carregar dades inicials de la llista (simulations.json)
   useEffect(() => {
@@ -59,7 +65,7 @@ export default function Dashboard() {
 
       const newSim = await res.json();
       setMigrations(prev => [newSim, ...prev]);
-      setShowSetup(false);
+      setIsModalOpen(false);
     } catch (error) {
       alert("Error: " + error.message);
     } finally {
@@ -85,6 +91,13 @@ export default function Dashboard() {
     }
   };
 
+  const handleCloneMigration = (migration) => {
+    // Aquí podrías necesitar un fetch adicional si el objeto 'migration' 
+    // de la lista no trae todos los parámetros técnicos (l_max, c_min, etc.)
+    setMigrationTemplate(migration);
+    setIsModalOpen(true);
+  };
+
   // RENDERITZAT CONDICIONAL SEGUR (Cap canvi visual aquí)
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
@@ -95,7 +108,8 @@ export default function Dashboard() {
       {view === 'list' && (
         <MigrationList
           migrations={migrations}
-          onNewMigration={() => setShowSetup(true)}
+          onNewMigration={handleNewMigration}
+          onCloneMigration={handleCloneMigration}
           onViewDetail={handleViewDetail}
           onDeleteMigration={handleDeleteMigration}
         />
@@ -111,9 +125,10 @@ export default function Dashboard() {
         />
       )}
 
-      {showSetup && (
+      {isModalOpen && (
         <SetupModal
-          onClose={() => setShowSetup(false)}
+          templateData={migrationTemplate}
+          onClose={() => setIsModalOpen(false)}
           onConfirm={handleConfirmSetup}
           isCalculating={isCalculating}
         />

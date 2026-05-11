@@ -84,11 +84,34 @@ def update_simulation_status(db: Session, sim_id: UUID, status: models.Simulatio
 
 def delete_simulation(db: Session, sim_id: UUID):
     db_sim = get_simulation(db, sim_id)
-    if db_sim:
-        db.delete(db_sim)
-        db.commit()
-        return True
-    return False
+    if not db_sim:
+        return False
+        
+    # Guardamos los IDs de los archivos ANTES de borrar la simulación
+    file_ids_to_check = {db_sim.nodes_file_id, db_sim.edges_file_id, db_sim.paths_file_id}
+    
+    # Borrado en cascada (Elimina la simulación, etapas, etc.)
+    db.delete(db_sim)
+    db.commit()
+
+    # Comprobación de archivos huérfanos
+    for f_id in file_ids_to_check:
+        if not f_id: continue
+        is_used = db.query(models.Simulation).filter(
+            (models.Simulation.nodes_file_id == f_id) | 
+            (models.Simulation.edges_file_id == f_id) | 
+            (models.Simulation.paths_file_id == f_id)
+        ).first()
+        
+        if not is_used:
+            db_file = db.query(models.SimulationFile).get(f_id)
+            if db_file:
+                if os.path.exists(db_file.path):
+                    os.remove(db_file.path)
+                db.delete(db_file)
+    
+    db.commit()
+    return True
 
 # --- 3. GUARDADO DE RESULTADOS (Versión de Alta Velocidad) ---
 
