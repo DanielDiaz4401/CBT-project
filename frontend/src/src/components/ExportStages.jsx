@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Download } from 'lucide-react'; 
+import toast from 'react-hot-toast';
 
 export default function ExportStages({ migration }) {
   const [stagesData, setStagesData] = useState([]);
@@ -61,7 +62,7 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE_URL;
         a.click();
         a.remove();
       })
-      .catch(err => alert(err.message));
+      .catch(err => toast.error(err.message));
   };
 
   if (loading) {

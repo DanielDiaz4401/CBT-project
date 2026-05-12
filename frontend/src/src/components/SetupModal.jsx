@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { toast } from 'react-hot-toast'; // <-- 1. Importamos toast
 
 export default function SetupModal({ onClose, onConfirm, isCalculating, templateData }) {
   const [migrationName, setMigrationName] = useState(
@@ -10,7 +11,7 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
     c_max: templateData?.c_max ?? 5, 
     l_max: templateData?.l_max ?? 150, 
     l_extra: templateData?.l_extra ?? 30,
-    threshold: templateData?.threshold ?? 10 // Cambiado a threshold
+    threshold: templateData?.threshold ?? 10
   });
 
   const [constraints, setConstraints] = useState(
@@ -33,7 +34,10 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
   };
 
   const addConstraint = () => {
-    if (!newNodeId || !newStage) return;
+    if (!newNodeId || !newStage) {
+      toast.error("Please provide both Node ID and Stage number."); // <-- Validación no intrusiva
+      return;
+    }
     const newObj = { component_name: newNodeId, stage_number: parseInt(newStage) };
     setConstraints([...constraints, newObj]);
     setNewNodeId('');
@@ -48,7 +52,12 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
     e.preventDefault();
 
     if (!templateData && (!files.edges || !files.nodes || !files.paths)) {
-        alert("Please upload all required files.");
+        toast.error("Please upload all required CSV files."); // <-- 2. Adiós alert()
+        return;
+    }
+
+    if (!migrationName.trim()) {
+        toast.error("Please provide a project name.");
         return;
     }
 
@@ -58,7 +67,7 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
     formData.append("c_min", params.c_min);
     formData.append("c_max", params.c_max);
     formData.append("l_max", params.l_max);
-    formData.append("threshold", params.threshold); // Cambiado a threshold
+    formData.append("threshold", params.threshold);
     formData.append("blocked_components", JSON.stringify(constraints));
 
     if (templateData) {
@@ -73,11 +82,14 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
         onConfirm(formData); 
     } catch (error) {
         console.error(error);
+        toast.error("An unexpected error occurred building the request.");
     }
   };
 
+  // ... (El return() con el HTML se mantiene exactamente igual que el que ya tenías)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
+      {/* ... todo tu código JSX se mantiene idéntico ... */}
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl flex flex-col max-h-[90vh]">
         
         {/* Header */}
@@ -235,7 +247,7 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
                 <div className="relative flex items-center">
                   <input 
                     type="number" 
-                    value={params.threshold} // Cambiado a threshold
+                    value={params.threshold} 
                     onChange={(e) => setParams({...params, threshold: e.target.value})} 
                     className="w-full p-3 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 pr-10" 
                   />
