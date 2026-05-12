@@ -10,17 +10,16 @@ export default function VisualizeStages({ migration }) {
   const [stagesData, setStagesData] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Paràmetres de configuració
+  // Configuration parameters
   const params = migration?.params || { 
     l_max: 150, 
     c_min: 1, 
     c_max: 5, 
     l_extra: 0, 
-    umbral: 0 
+    threshold: 0 // Changed from umbral to threshold
   };
 
-  // Obtenim els nodes fixats (blocked_components) de la migració
-  // Nota: Assegura't que el teu backend retorni aquesta llista dins de l'objecte migration
+  // Get fixed nodes (blocked_components) of the migration
   const fixedNodes = migration?.blocked_components || [];
 
   useEffect(() => {
@@ -34,7 +33,7 @@ export default function VisualizeStages({ migration }) {
             currentTotal += s.migrated_components.length;
             return {
               ...s,
-              etapa: index,
+              stage: index, // Changed from etapa to stage
               cumulative: currentTotal,
               theoMin: (index + 1) * Number(params.c_min),
               theoMax: (index + 1) * Number(params.c_max)
@@ -65,7 +64,7 @@ export default function VisualizeStages({ migration }) {
   return (
     <div className="flex flex-col h-full bg-slate-50 overflow-y-auto p-8 font-sans">
       
-      {/* 1. SECCIÓ DE PARÀMETRES */}
+      {/* 1. PARAMETERS SECTION */}
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-4 text-slate-400">
           <Settings size={16} />
@@ -77,7 +76,7 @@ export default function VisualizeStages({ migration }) {
             { label: 'C-Max', value: params.c_max },
             { label: 'L-Max Limit', value: `${params.l_max} ms`, highlight: true },
             { label: 'Extra Latency', value: `+${params.l_extra} ms` },
-            { label: 'Threshold', value: `${params.umbral}%` }
+            { label: 'Threshold', value: `${params.threshold}%` } // Changed to threshold
           ].map((item, i) => (
             <div key={i} className={`bg-white px-4 py-4 rounded-2xl border border-slate-200 shadow-sm ${item.highlight ? 'border-l-4 border-l-blue-500' : ''}`}>
               <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">{item.label}</p>
@@ -87,11 +86,11 @@ export default function VisualizeStages({ migration }) {
         </div>
       </div>
 
-      {/* NUEVA SECCIÓN: FIXED NODES (CONSTRAINTS) */}
+      {/* FIXED NODES (CONSTRAINTS) SECTION */}
       <div className="mb-10">
         <div className="flex items-center gap-2 mb-4 text-slate-400">
           <Lock size={16} />
-          <h3 className="text-[10px] font-black uppercase tracking-widest">Fixed NodeS</h3>
+          <h3 className="text-[10px] font-black uppercase tracking-widest">Fixed Nodes</h3>
         </div>
         {fixedNodes.length > 0 ? (
           <div className="flex flex-wrap gap-3">
@@ -116,7 +115,7 @@ export default function VisualizeStages({ migration }) {
         )}
       </div>
 
-      {/* 2. SECCIÓ DE STATISTICS (KPI CARDS) */}
+      {/* 2. STATISTICS SECTION (KPI CARDS) */}
       <div className="mb-10">
         <div className="flex items-center gap-2 mb-4 text-slate-400">
           <BarChart3 size={16} />
@@ -175,7 +174,7 @@ export default function VisualizeStages({ migration }) {
         </div>
       </div>
 
-      {/* 3. GRÀFICS */}
+      {/* 3. CHARTS */}
       <div className="space-y-8">
         <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
           <div className="mb-6">
@@ -186,7 +185,7 @@ export default function VisualizeStages({ migration }) {
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={stagesData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="etapa" tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                <XAxis dataKey="stage" tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
                 <YAxis tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} unit="ms" />
                 <Tooltip 
                   contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 20px rgba(0,0,0,0.05)'}} 
@@ -213,7 +212,7 @@ export default function VisualizeStages({ migration }) {
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={stagesData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="etapa" tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                <XAxis dataKey="stage" tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
                 <YAxis tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
                 <Tooltip 
                   contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 20px rgba(0,0,0,0.05)'}}

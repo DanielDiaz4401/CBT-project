@@ -12,7 +12,7 @@ export default function ExportStages({ migration }) {
       setLoading(true);
       fetch(`${API_BASE}/${migration.id}/stages`)
         .then(res => {
-          if (!res.ok) throw new Error("Error al obtener las etapas");
+          if (!res.ok) throw new Error("Error fetching stages");
           return res.json();
         })
         .then(data => {
@@ -20,7 +20,7 @@ export default function ExportStages({ migration }) {
           setLoading(false);
         })
         .catch(err => {
-          console.error("Error en ExportStages:", err);
+          console.error("Error in ExportStages:", err);
           setLoading(false);
         });
     }
@@ -29,50 +29,87 @@ export default function ExportStages({ migration }) {
   const handleExportJSON = () => {
     if (stagesData.length === 0) return;
 
-    // Al exportar, podemos añadir el índice al JSON para que el receptor sepa el orden
-    const exportData = stagesData.map((s, i) => ({ etapa: i, ...s }));
+    // Translated index to 'stage'
+    const exportData = stagesData.map((s, i) => ({ stage: i, ...s }));
     
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `reporte_migracion_${migration.name || 'data'}.json`);
+    downloadAnchorNode.setAttribute("download", `migration_report_${migration.name || 'data'}.json`);
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
   };
 
+  const handleDownloadArtifact = (fileType) => {
+    if (!migration) return;
+
+    // Actualizado al nuevo endpoint REST
+    const url = `${API_BASE}/${migration.id}/artifacts/${fileType}`;
+
+    fetch(url)
+      .then(res => {
+        if (!res.ok) throw new Error(`Could not download ${fileType}`);
+        return res.blob();
+      })
+      .then(blob => {
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `${migration.name}_${fileType}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      })
+      .catch(err => alert(err.message));
+  };
+
   if (loading) {
-    return (
-      <div className="flex h-full items-center justify-center bg-slate-50">
-        <p className="text-slate-400 font-bold animate-pulse">Cargando reporte...</p>
-      </div>
-    );
+    return <div className="p-20 text-center animate-pulse font-bold text-slate-400">Loading export data...</div>;
   }
 
   return (
-    <div className="flex flex-col h-full p-8 bg-white relative">
-      <div className="flex justify-between items-center mb-8 shrink-0">
+    <div className="flex flex-col h-full bg-slate-50">
+      {/* Header / Actions */}
+      <div className="bg-white p-8 border-b border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tight">Plan Global de Migración</h2>
-          <p className="text-slate-500 text-base mt-1">Secuencia completa de componentes migrados por posición en el array.</p>
+          <h2 className="text-2xl font-black text-slate-800 mb-2">Export Data</h2>
+          <p className="text-slate-500 text-sm">Download configuration artifacts or the final stage report.</p>
         </div>
-        <button 
-          onClick={handleExportJSON} 
-          className="flex items-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-sm uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95"
-        >
-          <Download size={18} />
-          Exportar Reporte JSON
-        </button>
+
+        <div className="flex gap-3">
+          <button 
+            onClick={handleExportJSON}
+            className="flex items-center gap-2 px-6 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold shadow-lg transition-all"
+          >
+            <Download size={18} />
+            <span>Download Stages (JSON)</span>
+          </button>
+
+          {/* New specific download buttons for CSVs */}
+          <div className="flex bg-slate-100 rounded-xl p-1 border border-slate-200">
+            {['nodes', 'edges', 'paths'].map(type => (
+              <button
+                key={type}
+                onClick={() => handleDownloadArtifact(type)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-white hover:text-blue-600 hover:shadow-sm rounded-lg transition-all capitalize"
+              >
+                {type} CSV
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      <div className="flex-1 border border-slate-200 rounded-2xl overflow-hidden shadow-sm flex flex-col bg-slate-50">
-        <div className="overflow-y-auto flex-1 h-0">
-          <table className="w-full text-left relative">
-            <thead className="bg-slate-100 border-b-2 border-slate-200 sticky top-0 z-10 shadow-sm">
+      {/* Data Preview (Kept your original table design) */}
+      <div className="flex-1 overflow-auto p-8">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="p-6 text-xs font-black text-slate-500 uppercase tracking-widest w-48">Etapa (Índice)</th>
-                <th className="p-6 text-xs font-black text-slate-500 uppercase tracking-widest">Componentes Migrados</th>
-                <th className="p-6 text-xs font-black text-slate-500 uppercase tracking-widest text-right">Latencia Resultante</th>
+                <th className="p-6 text-xs font-black text-slate-500 uppercase tracking-widest w-24">Stage</th>
+                <th className="p-6 text-xs font-black text-slate-500 uppercase tracking-widest">Migrated Components</th>
+                <th className="p-6 text-xs font-black text-slate-500 uppercase tracking-widest text-right">Resulting Latency</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 bg-white">

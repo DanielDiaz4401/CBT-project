@@ -10,7 +10,7 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
     c_max: templateData?.c_max ?? 5, 
     l_max: templateData?.l_max ?? 150, 
     l_extra: templateData?.l_extra ?? 30,
-    umbral: templateData?.threshold ?? 10
+    threshold: templateData?.threshold ?? 10 // Cambiado a threshold
   });
 
   const [constraints, setConstraints] = useState(
@@ -58,14 +58,12 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
     formData.append("c_min", params.c_min);
     formData.append("c_max", params.c_max);
     formData.append("l_max", params.l_max);
-    formData.append("threshold", params.umbral);
+    formData.append("threshold", params.threshold); // Cambiado a threshold
     formData.append("blocked_components", JSON.stringify(constraints));
 
     if (templateData) {
-        // MODO CLON: Mandamos el ID de la simulación base
         formData.append("base_sim_id", templateData.id);
     } else {
-        // MODO NUEVO: Mandamos los archivos físicos
         formData.append("nodes_file", files.nodes);
         formData.append("edges_file", files.edges);
         formData.append("paths_file", files.paths);
@@ -91,7 +89,7 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors">✕</button>
         </div>
 
-        {/* Cuerpo del modal */}
+        {/* Body */}
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
           
           {/* 1. PROJECT & DATA */}
@@ -115,7 +113,6 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
               </h3>
 
               {templateData ? (
-                /* MODO CLON: Mensaje visual de archivos vinculados */
                 <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center gap-3">
                   <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center flex-shrink-0">
                     <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -123,12 +120,11 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-emerald-900">Archivos vinculados</p>
-                    <p className="text-xs text-emerald-700">Se usarán los archivos de la simulación base.</p>
+                    <p className="text-sm font-bold text-emerald-900">Linked Files</p>
+                    <p className="text-xs text-emerald-700">Base simulation files will be used.</p>
                   </div>
                 </div>
               ) : (
-                /* MODO NUEVO: Los inputs de archivo con estilos mejorados */
                 <div className="space-y-3">
                   <label className="block text-xs font-bold text-slate-500 uppercase">Input Files (.csv)</label>
                   {['nodes', 'edges', 'paths'].map((type) => (
@@ -239,8 +235,8 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
                 <div className="relative flex items-center">
                   <input 
                     type="number" 
-                    value={params.umbral} 
-                    onChange={(e) => setParams({...params, umbral: e.target.value})} 
+                    value={params.threshold} // Cambiado a threshold
+                    onChange={(e) => setParams({...params, threshold: e.target.value})} 
                     className="w-full p-3 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 pr-10" 
                   />
                   <span className="absolute right-4 text-slate-400 text-sm font-bold">%</span>

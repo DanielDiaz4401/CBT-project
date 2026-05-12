@@ -3,15 +3,15 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 const API_BASE = 'http://localhost:8000/simulations';
 
 export default function VisualizeGraph({ migration }) {
-  // Datos del Servidor
-  const [milestones, setMilestones] = useState([]);      // Etapas que afectan a este camino
-  const [allStages, setAllStages] = useState([]);        // Registro global de migraciones
-  const [skeleton, setSkeleton] = useState(null);        // Topología del camino
-  const [currentStepEdges, setCurrentStepEdges] = useState(null); // Aristas rojas/puntos
+  // Server Data
+  const [milestones, setMilestones] = useState([]);      // Stages affecting this path
+  const [allStages, setAllStages] = useState([]);        // Global migration record
+  const [skeleton, setSkeleton] = useState(null);        // Path topology
+  const [currentStepEdges, setCurrentStepEdges] = useState(null); // Red edges/nodes
   
-  // Estado de Navegación
+  // Navigation State
   const [pathNumber, setPathNumber] = useState(''); 
-  const [stageIdx, setStageIdx] = useState(0);           // Índice en el array de hitos
+  const [stageIdx, setStageIdx] = useState(0);           // Index in milestones array
   const [loading, setLoading] = useState(false);
 
   // Pan & Zoom
@@ -21,10 +21,10 @@ export default function VisualizeGraph({ migration }) {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const containerRef = useRef(null);
 
-  // 1. Carga Inicial: Hitos y Todas las Etapas
+  // 1. Initial Load: Milestones and All Stages
   useEffect(() => {
     if (migration?.id) {
-      // Cargamos los hitos del camino
+      // Load path milestones
       fetch(`${API_BASE}/${migration.id}/critical-paths`)
         .then(res => res.json())
         .then(data => {
@@ -35,7 +35,7 @@ export default function VisualizeGraph({ migration }) {
           }
         });
 
-      // Cargamos TODAS las etapas para la acumulación local
+      // Load ALL stages for local accumulation
       fetch(`${API_BASE}/${migration.id}/stages`)
         .then(res => res.json())
         .then(data => setAllStages(data));
@@ -50,7 +50,7 @@ export default function VisualizeGraph({ migration }) {
       setSkeleton(data);
       setStageIdx(0);
       
-      // Busquem els hitos específics d'aquest path per carregar la primera etapa
+      // Find specific milestones for this path to load the first stage
       const pathInfo = milestones.find(p => p.path_number === Number(num));
       const firstStage = pathInfo?.affected_stages[0] || 0;
       loadStepEdges(firstStage);
@@ -67,7 +67,7 @@ export default function VisualizeGraph({ migration }) {
       .then(data => setCurrentStepEdges(data));
   };
 
-  // 2. LÓGICA DE ACUMULACIÓN
+  // 2. ACCUMULATION LOGIC
   const cloudNodes = useMemo(() => {
     if (!milestones.length || pathNumber === '' || !allStages.length || !skeleton) return new Set();
     
@@ -112,7 +112,7 @@ export default function VisualizeGraph({ migration }) {
         transition: isDragging ? 'none' : 'transform 0.1s ease-out'
       }}>
         <g transform={`translate(${containerRef.current?.clientWidth / 2 || 400}, ${containerRef.current?.clientHeight / 2 || 300})`}>
-          {/* ARISTAS */}
+          {/* EDGES */}
           {Object.entries(skeleton.edge_latencies).map(([edgeKey, lat]) => {
             const [sId, tId] = edgeKey.split('|');
             const sIdx = nodeIds.indexOf(sId);
@@ -136,7 +136,7 @@ export default function VisualizeGraph({ migration }) {
             );
           })}
 
-          {/* NODOS */}
+          {/* NODES */}
           {nodeIds.map((id, i) => {
             const pos = getPos(i);
             const isCloud = cloudNodes.has(id);
@@ -170,7 +170,7 @@ export default function VisualizeGraph({ migration }) {
       {/* FLOATING HEADER: PATH INPUT & ZOOM CONTROLS */}
       <div className="absolute top-6 left-6 right-6 flex justify-between items-start z-10 pointer-events-none">
         
-        {/* Lado Izquierdo: Input de Path y Leyenda */}
+        {/* Left Side: Path Input and Legend */}
         <div className="flex flex-col gap-4 pointer-events-auto">
           <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-lg border border-slate-200/60 flex flex-col">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Path Number</label>
@@ -193,7 +193,7 @@ export default function VisualizeGraph({ migration }) {
             </div>
           </div>
 
-          {/* Leyenda Visual */}
+          {/* Visual Legend */}
           <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-lg border border-slate-200/60 flex flex-col gap-3">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 rounded-full bg-[#94a3b8] border-2 border-white shadow-sm"></div>
@@ -210,7 +210,7 @@ export default function VisualizeGraph({ migration }) {
           </div>
         </div>
 
-        {/* Lado Derecho: Controles de Zoom */}
+        {/* Right Side: Zoom Controls */}
         <div className="bg-white/90 backdrop-blur-md p-1.5 rounded-2xl shadow-lg border border-slate-200/60 flex flex-col gap-1 pointer-events-auto">
           <button onClick={() => setZoom(z => z + 0.1)} className="w-10 h-10 flex items-center justify-center bg-transparent hover:bg-slate-100 rounded-xl text-slate-600 font-bold text-xl transition-colors">+</button>
           <div className="w-6 h-[1px] bg-slate-200 mx-auto my-1"></div>

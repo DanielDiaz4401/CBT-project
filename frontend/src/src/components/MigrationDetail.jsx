@@ -6,7 +6,6 @@ import ExportStages from './ExportStages';
 export default function MigrationDetail({ migration, onBack }) {
   const [activeTab, setActiveTab] = useState('statistics');
 
-  // CANVI LÒGIC 1: Deixem només !migration perquè no es quedi clavat carregant
   if (!migration) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50">
@@ -29,7 +28,9 @@ export default function MigrationDetail({ migration, onBack }) {
           </button>
           <div>
             <h1 className="text-xl font-black text-slate-900 leading-none">{migration.name}</h1>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{migration.date}</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+              {new Date(migration.created_at || migration.date).toLocaleString()}
+            </p>
           </div>
         </div>
 
@@ -43,10 +44,9 @@ export default function MigrationDetail({ migration, onBack }) {
 
       <div className="flex-1 overflow-hidden p-6">
         <div className="bg-white rounded-3xl shadow-xl border border-slate-200 h-full overflow-hidden flex flex-col">
-          {/* CANVI LÒGIC 2: Passem 'migration' als components perquè puguin fer les peticions amb el seu ID */}
           {activeTab === 'statistics' && <VisualizeStages migration={migration} />}
           {activeTab === 'graph' && <VisualizeGraph migration={migration} />}
-          {activeTab === 'export' && <ExportStages migration={migration} migrationName={migration.name} />}
+          {activeTab === 'export' && <ExportStages migration={migration} />}
         </div>
       </div>
     </div>

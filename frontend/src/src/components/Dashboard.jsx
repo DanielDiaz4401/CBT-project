@@ -3,7 +3,7 @@ import WelcomeScreen from './WelcomeScreen';
 import MigrationList from './MigrationList';
 import SetupModal from './SetupModal';
 import MigrationDetail from './MigrationDetail';
-import MigrationCompare from './MigrationCompare'; // 1. Importamos el nuevo componente
+import MigrationCompare from './MigrationCompare'; 
 
 const API_BASE = 'http://localhost:8000/simulations';
 
@@ -13,27 +13,24 @@ export default function Dashboard() {
   const [selectedMigration, setSelectedMigration] = useState(null);
   const [isCalculating, setIsCalculating] = useState(false);
   
-  // Estados de tu código (Backend - Clonado y Modal)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [migrationTemplate, setMigrationTemplate] = useState(null);
-
-  // Estado del compañero (Frontend - Comparación)
   const [selectedForCompare, setSelectedForCompare] = useState([]);
 
   const handleNewMigration = () => {
-    setMigrationTemplate(null); // Limpio
+    setMigrationTemplate(null); 
     setIsModalOpen(true);
   };
 
-  // 1. Carregar dades inicials de la llista
+  // 1. Load initial list data
   useEffect(() => {
-    fetch(API_BASE + '/')
+    fetch(API_BASE)
       .then(res => res.json())
       .then(data => setMigrations(data))
-      .catch(err => console.error("Error cargando lista:", err));
+      .catch(err => console.error("Error loading list:", err));
   }, []);
 
-  // 2. SSE para actualizaciones en tiempo real
+  // 2. SSE for real-time updates
   useEffect(() => {
     const sse = new EventSource(`${API_BASE}/events/stream`);
 
@@ -49,7 +46,7 @@ export default function Dashboard() {
     };
 
     sse.onerror = () => {
-      console.error("Error en conexión SSE.");
+      console.error("SSE connection error.");
     };
 
     return () => sse.close();
@@ -62,7 +59,7 @@ export default function Dashboard() {
         method: 'POST',
         body: formData 
       });
-      if (!res.ok) throw new Error("Error en la creación");
+      if (!res.ok) throw new Error("Creation error");
       const newSim = await res.json();
       setMigrations(prev => [newSim, ...prev]);
       setIsModalOpen(false);
@@ -78,7 +75,6 @@ export default function Dashboard() {
     setView('detail');
   };
 
-  // 3. Función para activar la vista de comparación
   const handleCompare = (ids) => {
     const selected = migrations.filter(m => ids.includes(m.id));
     setSelectedForCompare(selected);
@@ -86,12 +82,12 @@ export default function Dashboard() {
   };
 
   const handleDeleteMigration = async (id) => {
-    if (window.confirm("¿Seguro que quieres borrar esta simulación?")) {
+    if (window.confirm("Are you sure you want to delete this simulation?")) {
       try {
         await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
         setMigrations(prev => prev.filter(m => m.id !== id));
       } catch (err) {
-        console.error("No se pudo borrar:", err);
+        console.error("Failed to delete:", err);
       }
     }
   };
@@ -118,7 +114,6 @@ export default function Dashboard() {
         />
       )}
 
-      {/* 5. Nueva vista de comparación */}
       {view === 'compare' && (
         <MigrationCompare 
           selectedMigrations={selectedForCompare} 

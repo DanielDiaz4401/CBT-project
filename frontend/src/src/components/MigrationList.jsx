@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 
-// Añadimos onCompare a los props recibidos
 export default function MigrationList({ migrations, onNewMigration, onCloneMigration, onViewDetail, onDeleteMigration, onCompare }) {
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -61,7 +60,6 @@ export default function MigrationList({ migrations, onNewMigration, onCloneMigra
         <div className="flex gap-3">
           {isSelectMode && selectedIds.length >= 2 && (
             <button
-              // CAMBIO CLAVE: Quitamos el alert y llamamos a onCompare
               onClick={() => onCompare(selectedIds)}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm shadow-lg hover:bg-blue-700 transition-all"
             >
@@ -111,7 +109,6 @@ export default function MigrationList({ migrations, onNewMigration, onCloneMigra
         </div>
       </div>
 
-      {/* Tabla corregida con clases estándar */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="max-h-150 overflow-y-auto">
           <table className="w-full text-left relative">
@@ -188,10 +185,10 @@ export default function MigrationList({ migrations, onNewMigration, onCloneMigra
                     <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                       m.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
                       m.status === 'failed' ? 'bg-amber-100 text-amber-700' :
-                      m.status === 'pending' ? 'bg-slate-100 text-slate-700' :
                       m.status === 'error' ? 'bg-red-100 text-red-700' :
+                      m.status === 'pending' ? 'bg-slate-100 text-slate-700' :
                       'bg-blue-100 text-blue-700 animate-pulse'
-                      }`}>
+                    }`}>
                       {m.status}
                     </span>
                   </td>

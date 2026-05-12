@@ -26,7 +26,7 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
         const newStats = {};
         
         const chartData = Array.from({ length: maxStages }, (_, i) => {
-          const entry = { etapa: i };
+          const entry = { stage: i }; // TRANSLATED: etapa -> stage
           results.forEach((stages, idx) => {
             if (stages[i]) {
               entry[`latency_${idx}`] = stages[i].worst_critical_time;
@@ -36,10 +36,8 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
               entry[`cumulative_${idx}`] = currentTotal;
             }
             
-            // Calculamos las estadísticas solo en la primera iteración
             if (i === 0) {
               const totalMigrated = stages.reduce((acc, s) => acc + s.migrated_components.length, 0);
-              // AHORA LEE DIRECTAMENTE DE LA RAÍZ: selectedMigrations[idx].c_max
               const cMax = Number(selectedMigrations[idx].c_max || 5); 
               const optimal = Math.ceil(totalMigrated / cMax);
               const real = stages.length;
@@ -47,7 +45,7 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
               newStats[idx] = {
                 efficiency: real > 0 ? Math.min(100, Math.round((optimal / real) * 100)) : 0,
                 total: totalMigrated,
-                stagesCount: real // Guardamos el número de etapas reales calculado
+                stagesCount: real 
               };
             }
           });
@@ -57,7 +55,7 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
         setExtraStats(newStats);
         setComparisonData(chartData);
       } catch (err) {
-        console.error("Error comparando datos:", err);
+        console.error("Error comparing data:", err);
       } finally {
         setLoading(false);
       }
@@ -89,7 +87,6 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
                 <h3 className="text-lg font-bold truncate text-slate-800">{m.name}</h3>
               </div>
 
-              {/* Parámetros actualizados con el nuevo esquema del Backend */}
               <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
                 <div className="flex items-center gap-2 mb-3 text-slate-400">
                   <Settings size={14} />
@@ -99,7 +96,7 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
                   {[
                     { label: 'C-MAX', val: m.c_max },
                     { label: 'L-MAX', val: `${m.l_max}ms` },
-                    { label: 'THRSH', val: `${m.threshold}%` },
+                    { label: 'THRSH', val: `${m.threshold}%` }, // TRANSLATED: umbral -> threshold
                     { label: 'EXTRA', val: `+${m.l_extra}ms` }
                   ].map((p, i) => (
                     <div key={i}>
@@ -110,7 +107,7 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
                 </div>
               </div>
 
-              {/* KPIs (Usando el stagesCount calculado internamente) */}
+              {/* KPIs */}
               <div className="mt-auto pt-4 grid grid-cols-2 gap-4 border-t border-slate-50">
                 <div className="flex flex-col">
                   <div className="flex items-center gap-1 text-blue-500 mb-1">
@@ -130,14 +127,6 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
             </div>
           </div>
         ))}
-
-        {selectedMigrations.length < 4 && 
-          Array.from({ length: 4 - selectedMigrations.length }).map((_, i) => (
-            <div key={`empty-${i}`} className="hidden lg:flex flex-col border-2 border-dashed border-slate-200 rounded-3xl bg-slate-100/30 items-center justify-center p-6">
-              <p className="text-slate-300 text-[10px] font-black uppercase tracking-widest italic">Available Slot</p>
-            </div>
-          ))
-        }
       </div>
 
       {/* 2. GRÁFICOS */}
@@ -151,7 +140,7 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={comparisonData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="etapa" tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                <XAxis dataKey="stage" tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
                 <YAxis unit="ms" tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 20px rgba(0,0,0,0.05)'}} />
                 <Legend verticalAlign="top" height={36} iconType="circle" />
@@ -181,7 +170,7 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={comparisonData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="etapa" tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                <XAxis dataKey="stage" tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
                 <YAxis tick={{fontSize: 10, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 20px rgba(0,0,0,0.05)'}} />
                 <Legend verticalAlign="top" height={36} iconType="circle" />
