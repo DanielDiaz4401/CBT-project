@@ -12,9 +12,9 @@ class SimulationStatus(str, Enum):
     """Estados posibles por los que pasa una simulación en su ciclo de vida."""
     PENDING = "pending"
     RUNNING = "running"
-    PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+    ERROR = "error"
 
 class SimulationFileType(str, Enum):
     """Tipos de archivos CSV soportados por el sistema."""

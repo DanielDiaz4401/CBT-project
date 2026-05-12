@@ -566,7 +566,7 @@ def generate_migration_plan(
         ruta_aristas, ruta_nodos, ruta_paths, l_extra
     )
     logger.info("Iniciando algoritmo")
-    stages, critical_paths_latency, _ = get_stages(
+    stages, critical_paths_latency, forzadas = get_stages(
         c_min, c_max, l_max, l_extra,
         pending_components, paths_dict,
         component_to_paths, component_adjacency, method_to_component,
@@ -614,7 +614,8 @@ def generate_migration_plan(
 
     return {
         "etapas": etapas_output,
-        "rutas_criticas": rutas_criticas_output
+        "rutas_criticas": rutas_criticas_output,
+        "meets_requirements": not any(forzadas)
     }
 
 

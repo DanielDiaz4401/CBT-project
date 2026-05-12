@@ -5,9 +5,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TYPE simulation_status AS ENUM (
     'pending', 
     'running', 
-    'processing', 
     'completed', 
     'failed'
+    'error', 
 );
 
 -- 3. TABLA DE ARCHIVOS (Deduplicación)

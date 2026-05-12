@@ -11,6 +11,7 @@ export default function MigrationList({ migrations, onNewMigration, onCloneMigra
   const running = migrations.filter(m => m.status === 'running').length;
   const pending = migrations.filter(m => m.status === 'pending').length;
   const failed = migrations.filter(m => m.status === 'failed').length;
+  const error = migrations.filter(m => m.status === 'error').length;
 
   const toggleSelection = (id) => {
     setSelectedIds(prev =>
@@ -83,26 +84,30 @@ export default function MigrationList({ migrations, onNewMigration, onCloneMigra
       </div>
 
       {/* Contadores */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-10">
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total</p>
           <p className="text-2xl font-bold text-slate-900">{total}</p>
         </div>
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-emerald-500">
-          <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Completed</p>
-          <p className="text-2xl font-bold text-slate-900">{completed}</p>
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-slate-400">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Pending</p>
+          <p className="text-2xl font-bold text-slate-900">{pending}</p>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-blue-500">
           <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">Running</p>
           <p className="text-2xl font-bold text-slate-900">{running}</p>
         </div>
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-emerald-500">
+          <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Completed</p>
+          <p className="text-2xl font-bold text-slate-900">{completed}</p>
+        </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-amber-500">
           <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1">Failed</p>
-          <p className="text-2xl font-bold text-slate-900">{pending}</p>
+          <p className="text-2xl font-bold text-slate-900">{failed}</p>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm border-l-4 border-l-red-500">
           <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-1">Error</p>
-          <p className="text-2xl font-bold text-slate-900">{failed}</p>
+          <p className="text-2xl font-bold text-slate-900">{error}</p>
         </div>
       </div>
 
@@ -160,7 +165,7 @@ export default function MigrationList({ migrations, onNewMigration, onCloneMigra
                   )}
                   <td className="p-4">
                     <p className="font-bold text-slate-800">{m.name}</p>
-                    {m.status === 'failed' && (
+                    {m.status === 'error' && (
                       <div className="group relative">
                         <p className="text-[10px] text-red-600 font-medium italic truncate max-w-50 cursor-help">
                           {m.error_message}
@@ -182,10 +187,11 @@ export default function MigrationList({ migrations, onNewMigration, onCloneMigra
                   <td className="p-4">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                       m.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
-                      m.status === 'failed' ? 'bg-red-100 text-red-700' :
-                      m.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                      m.status === 'failed' ? 'bg-amber-100 text-amber-700' :
+                      m.status === 'pending' ? 'bg-slate-100 text-slate-700' :
+                      m.status === 'error' ? 'bg-red-100 text-red-700' :
                       'bg-blue-100 text-blue-700 animate-pulse'
-                    }`}>
+                      }`}>
                       {m.status}
                     </span>
                   </td>

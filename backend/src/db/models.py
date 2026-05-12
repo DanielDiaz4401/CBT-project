@@ -11,9 +11,9 @@ Base = declarative_base()
 class SimulationStatus(str, enum.Enum):
     PENDING = "pending"
     RUNNING = "running"
-    PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+    ERROR = "error"
 
 class SimulationFileType(str, enum.Enum):
     nodes = "nodes"

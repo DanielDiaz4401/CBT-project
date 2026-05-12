@@ -46,11 +46,10 @@ def run_simulation_process(db: Session, sim_id: UUID):
             lista_bloqueos=bloqueos_lista
         )
 
-        if not crud.update_simulation_status(db, sim_id, models.SimulationStatus.PROCESSING):
+        if not crud.update_simulation_status(db, sim_id, models.SimulationStatus.RUNNING):
             logger.error(f"La simulación {sim_id} fue eliminada por el usuario. Abortando guardado.")
             return
         
-        crud.update_simulation_status(db, sim_id, models.SimulationStatus.PROCESSING)
         plan = to_serializable(migration_plan)
 
         # 2. Guardar Etapas Globales
@@ -89,10 +88,13 @@ def run_simulation_process(db: Session, sim_id: UUID):
             crud.add_path_nodes_bulk(db, db_path.id, path_data["nodos"])
             crud.add_path_edges_bulk(db, db_path.id, path_data["aristas"])
 
-        crud.update_simulation_status(db, sim_id, models.SimulationStatus.COMPLETED)
+        if plan["meets_requirements"]:
+            crud.update_simulation_status(db, sim_id, models.SimulationStatus.COMPLETED)
+        else:
+            crud.update_simulation_status(db, sim_id, models.SimulationStatus.FAILED)
 
     except Exception as e:
         db.rollback()
         error_details = traceback.format_exc()
         logger.error(f"FALLO CRÍTICO en simulación {sim_id}:\n{error_details}")
-        crud.update_simulation_status(db, sim_id, models.SimulationStatus.FAILED, error=str(e))
+        crud.update_simulation_status(db, sim_id, models.SimulationStatus.ERROR, error=str(e))
