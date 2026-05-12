@@ -18,7 +18,7 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
       try {
         const results = await Promise.all(
           selectedMigrations.map(m => 
-            fetch(`http://localhost:8000/simulations/get_stages/${m.id}`).then(res => res.json())
+            fetch(`http://localhost:8000/simulations/${m.id}/stages`).then(res => res.json())
           )
         );
 

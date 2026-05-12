@@ -25,7 +25,7 @@ export default function VisualizeGraph({ migration }) {
   useEffect(() => {
     if (migration?.id) {
       // Cargamos los hitos del camino
-      fetch(`${API_BASE}/get_critical_paths/${migration.id}`)
+      fetch(`${API_BASE}/${migration.id}/critical-paths`)
         .then(res => res.json())
         .then(data => {
           setMilestones(data);
@@ -36,7 +36,7 @@ export default function VisualizeGraph({ migration }) {
         });
 
       // Cargamos TODAS las etapas para la acumulación local
-      fetch(`${API_BASE}/get_stages/${migration.id}`)
+      fetch(`${API_BASE}/${migration.id}/stages`)
         .then(res => res.json())
         .then(data => setAllStages(data));
     }
@@ -45,7 +45,7 @@ export default function VisualizeGraph({ migration }) {
   const loadSkeleton = async (num) => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/get_critical_path_skeleton/${migration.id}/${num}`);
+      const res = await fetch(`${API_BASE}/${migration.id}/critical-paths/${num}/topology`);
       const data = await res.json();
       setSkeleton(data);
       setStageIdx(0);
@@ -62,7 +62,7 @@ export default function VisualizeGraph({ migration }) {
   };
 
   const loadStepEdges = (stageNum) => {
-    fetch(`${API_BASE}/get_critical_path_step/${migration.id}/${stageNum}`)
+    fetch(`${API_BASE}/${migration.id}/stages/${stageNum}/critical-path-update`)
       .then(res => res.json())
       .then(data => setCurrentStepEdges(data));
   };

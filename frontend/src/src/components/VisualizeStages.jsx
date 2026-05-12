@@ -26,7 +26,7 @@ export default function VisualizeStages({ migration }) {
   useEffect(() => {
     if (migration?.id) {
       setLoading(true);
-      fetch(`http://localhost:8000/simulations/get_stages/${migration.id}`)
+      fetch(`http://localhost:8000/simulations/${migration.id}/stages`)
         .then(res => res.json())
         .then(data => {
           let currentTotal = 0;

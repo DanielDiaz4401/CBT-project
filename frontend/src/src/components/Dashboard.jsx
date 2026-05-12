@@ -35,7 +35,7 @@ export default function Dashboard() {
 
   // 2. SSE para actualizaciones en tiempo real
   useEffect(() => {
-    const sse = new EventSource(`${API_BASE}/stream`);
+    const sse = new EventSource(`${API_BASE}/events/stream`);
 
     sse.onmessage = (event) => {
       const update = JSON.parse(event.data);
@@ -58,7 +58,7 @@ export default function Dashboard() {
   const handleConfirmSetup = async (formData) => {
     setIsCalculating(true);
     try {
-      const res = await fetch(`${API_BASE}/calculate`, {
+      const res = await fetch(`${API_BASE}`, {
         method: 'POST',
         body: formData 
       });

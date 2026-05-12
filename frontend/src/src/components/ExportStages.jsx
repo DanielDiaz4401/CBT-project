@@ -10,7 +10,7 @@ export default function ExportStages({ migration }) {
   useEffect(() => {
     if (migration?.id) {
       setLoading(true);
-      fetch(`${API_BASE}/get_stages/${migration.id}`)
+      fetch(`${API_BASE}/${migration.id}/stages`)
         .then(res => {
           if (!res.ok) throw new Error("Error al obtener las etapas");
           return res.json();

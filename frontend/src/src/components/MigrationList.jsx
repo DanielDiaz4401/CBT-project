@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 // Añadimos onCompare a los props recibidos
-export default function MigrationList({ migrations, onNewMigration, onViewDetail, onDeleteMigration, onCompare }) {
+export default function MigrationList({ migrations, onNewMigration, onCloneMigration, onViewDetail, onDeleteMigration, onCompare }) {
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });

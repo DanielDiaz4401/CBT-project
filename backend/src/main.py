@@ -1,43 +1,49 @@
 from fastapi import FastAPI
-from app.api.endpoints import router as sim_router
 from fastapi.middleware.cors import CORSMiddleware
+from app.api.endpoints import router as simulations_router
 
+# Descripción detallada soportando Markdown
+description = """
+### CaixaBank Tech - Cloud Migration Optimization API 🚀
 
+Esta API gestiona la lógica de negocio para la simulación de estrategias de migración de infraestructuras *on-premise* hacia entornos Cloud. 
 
-from app.db.session import engine
-from app.db.models import Base  # <--- IMPORTANTE: Importar el Base de tus modelos
-from time import sleep
+Permite a los ingenieros evaluar el impacto en la latencia de las rutas críticas, gestionar dependencias mediante bloqueos de componentes y optimizar el despliegue por etapas cumpliendo con restricciones técnicas de capacidad y rendimiento.
 
-# Esto crea las tablas que falten
-# Chapuza legendaria para que la base de datos se conecte aunque el contenedor no este activo al inicio
-connected=False
-while not connected:
-    try:
-        Base.metadata.create_all(bind=engine)
-        connected=True
-    except:
-        sleep(1)
-app = FastAPI(title="Antigravity API")
+#### Capacidades clave:
+* **Ejecución de Algoritmos:** Simulación de procesos de migración basados en scoring de impacto.
+* **Gestión de Restricciones:** Definición de componentes bloqueados hasta etapas específicas.
+* **Análisis Temporal:** Desglose detallado de la evolución de latencia por cada etapa.
+* **Monitoreo en Vivo:** Seguimiento de tareas de larga duración mediante Server-Sent Events (SSE).
+"""
 
-origins = [
-    "http://localhost:4321",
-    "http://localhost:5432",
-    "http://127.0.0.1:4321",
-    "http://127.0.0.1:5432",
-]
-
-# 2. Añadir el middleware a la aplicación
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],           # Cambia a la lista 'origins' para más seguridad
-    allow_credentials=True,
-    allow_methods=["*"],           # Permite todos los métodos (GET, POST, DELETE, etc.)
-    allow_headers=["*"],           # Permite todas las cabeceras
+app = FastAPI(
+    title="CBT - Migration Optimizer API",
+    description=description,
+    version="1.2.0",
+    contact={
+        "name": "Equipo de Desarrollo SRE - CBT",
+        "url": "https://github.com/DanielDiaz4401/CBT-project",
+    },
+    license_info={
+        "name": "Propiedad de CaixaBank Tech - Uso Interno",
+    },
+    openapi_tags=[
+        {
+            "name": "Simulations",
+            "description": "Operaciones de creación, ejecución y gestión de ciclos de vida de migraciones.",
+        },
+    ]
 )
 
-# Incluimos las rutas de simulaciones
-app.include_router(sim_router)
+# Configuración de seguridad y CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.get("/")
-def root():
-    return {"message": "Antigravity API is running"}
+# Registro de rutas siguiendo la nueva convención REST
+app.include_router(simulations_router)
