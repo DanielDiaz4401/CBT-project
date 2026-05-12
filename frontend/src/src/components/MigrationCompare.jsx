@@ -5,6 +5,8 @@ import {
 } from 'recharts';
 import { ArrowLeft, Layers, Zap, Clock, Settings } from 'lucide-react';
 
+const API_BASE = import.meta.env.PUBLIC_API_BASE_URL;
+
 export default function MigrationCompare({ selectedMigrations, onBack }) {
   const [comparisonData, setComparisonData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,7 +20,7 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
       try {
         const results = await Promise.all(
           selectedMigrations.map(m => 
-            fetch(`http://localhost:8000/simulations/${m.id}/stages`).then(res => res.json())
+            fetch(`${API_BASE}/${m.id}/stages`).then(res => res.json())
           )
         );
 

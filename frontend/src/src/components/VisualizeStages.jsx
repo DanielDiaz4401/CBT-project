@@ -6,6 +6,8 @@ import {
 } from 'recharts';
 import { Activity, Clock, Cpu, Zap, Settings, BarChart3, Lock } from 'lucide-react';
 
+const API_BASE = import.meta.env.PUBLIC_API_BASE_URL;
+
 export default function VisualizeStages({ migration }) {
   const [stagesData, setStagesData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,7 +27,7 @@ export default function VisualizeStages({ migration }) {
   useEffect(() => {
     if (migration?.id) {
       setLoading(true);
-      fetch(`http://localhost:8000/simulations/${migration.id}/stages`)
+      fetch(`${API_BASE}/${migration.id}/stages`)
         .then(res => res.json())
         .then(data => {
           let currentTotal = 0;

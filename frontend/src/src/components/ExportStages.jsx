@@ -5,7 +5,7 @@ export default function ExportStages({ migration }) {
   const [stagesData, setStagesData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const API_BASE = 'http://localhost:8000/simulations';
+const API_BASE = import.meta.env.PUBLIC_API_BASE_URL;
 
   useEffect(() => {
     if (migration?.id) {

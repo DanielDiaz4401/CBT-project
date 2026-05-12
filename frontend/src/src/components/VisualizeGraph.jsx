@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 
-const API_BASE = 'http://localhost:8000/simulations';
+const API_BASE = import.meta.env.PUBLIC_API_BASE_URL;
 
 export default function VisualizeGraph({ migration }) {
   // Server Data

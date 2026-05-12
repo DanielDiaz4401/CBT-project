@@ -5,7 +5,7 @@ import SetupModal from './SetupModal';
 import MigrationDetail from './MigrationDetail';
 import MigrationCompare from './MigrationCompare'; 
 
-const API_BASE = 'http://localhost:8000/simulations';
+const API_BASE = import.meta.env.PUBLIC_API_BASE_URL;
 
 export default function Dashboard() {
   const [view, setView] = useState('welcome');
