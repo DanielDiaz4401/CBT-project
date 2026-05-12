@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  AreaChart, Area, Legend, ReferenceLine
+  AreaChart, Area, Legend
 } from 'recharts';
 import { ArrowLeft, Layers, Zap, Clock, Settings } from 'lucide-react';
 
@@ -31,19 +31,23 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
             if (stages[i]) {
               entry[`latency_${idx}`] = stages[i].worst_critical_time;
               
-              // Lógica de acumulado igual que en VisualizeStages
+              // Acumulado
               const currentTotal = stages.slice(0, i + 1).reduce((acc, s) => acc + s.migrated_components.length, 0);
               entry[`cumulative_${idx}`] = currentTotal;
             }
             
+            // Calculamos las estadísticas solo en la primera iteración
             if (i === 0) {
               const totalMigrated = stages.reduce((acc, s) => acc + s.migrated_components.length, 0);
-              const cMax = Number(selectedMigrations[idx].params?.c_max || 5);
+              // AHORA LEE DIRECTAMENTE DE LA RAÍZ: selectedMigrations[idx].c_max
+              const cMax = Number(selectedMigrations[idx].c_max || 5); 
               const optimal = Math.ceil(totalMigrated / cMax);
               const real = stages.length;
+              
               newStats[idx] = {
                 efficiency: real > 0 ? Math.min(100, Math.round((optimal / real) * 100)) : 0,
-                total: totalMigrated
+                total: totalMigrated,
+                stagesCount: real // Guardamos el número de etapas reales calculado
               };
             }
           });
@@ -53,7 +57,7 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
         setExtraStats(newStats);
         setComparisonData(chartData);
       } catch (err) {
-        console.error("Error comparant dades:", err);
+        console.error("Error comparando datos:", err);
       } finally {
         setLoading(false);
       }
@@ -74,7 +78,7 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
         <h1 className="text-3xl font-black tracking-tight">COMPARE MIGRATIONS</h1>
       </div>
 
-      {/* 1. GRID COMPARATIVO (Fijo a 4 columnas para que se vea como en tu foto 2) */}
+      {/* 1. GRID COMPARATIVO */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         {selectedMigrations.slice(0, 4).map((m, idx) => (
           <div key={m.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
@@ -85,7 +89,7 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
                 <h3 className="text-lg font-bold truncate text-slate-800">{m.name}</h3>
               </div>
 
-              {/* Paràmetres (Inputs) */}
+              {/* Parámetros actualizados con el nuevo esquema del Backend */}
               <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
                 <div className="flex items-center gap-2 mb-3 text-slate-400">
                   <Settings size={14} />
@@ -93,41 +97,40 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { label: 'C-MAX', val: m.params?.c_max },
-                    { label: 'L-MAX', val: `${m.params?.l_max}ms` },
-                    { label: 'THRSH', val: `${m.params?.umbral}%` },
-                    { label: 'EXTRA', val: `+${m.params?.l_extra}ms` }
+                    { label: 'C-MAX', val: m.c_max },
+                    { label: 'L-MAX', val: `${m.l_max}ms` },
+                    { label: 'THRSH', val: `${m.threshold}%` },
+                    { label: 'EXTRA', val: `+${m.l_extra}ms` }
                   ].map((p, i) => (
                     <div key={i}>
                       <p className="text-[8px] font-black text-slate-400 uppercase leading-none mb-1">{p.label}</p>
-                      <p className="text-xs font-bold text-slate-700">{p.val || 'N/A'}</p>
+                      <p className="text-xs font-bold text-slate-700">{p.val !== undefined ? p.val : 'N/A'}</p>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Resultats (KPIs) - Empujados al fondo para alineación */}
+              {/* KPIs (Usando el stagesCount calculado internamente) */}
               <div className="mt-auto pt-4 grid grid-cols-2 gap-4 border-t border-slate-50">
                 <div className="flex flex-col">
                   <div className="flex items-center gap-1 text-blue-500 mb-1">
                     <Layers size={14} />
                     <span className="text-[10px] font-black uppercase">Stages</span>
                   </div>
-                  <p className="text-2xl font-black text-slate-900">{m.result?.total_stages || '?'}</p>
+                  <p className="text-2xl font-black text-slate-900">{extraStats[idx]?.stagesCount || '0'}</p>
                 </div>
                 <div className="flex flex-col">
                   <div className="flex items-center gap-1 text-amber-500 mb-1">
                     <Zap size={14} />
                     <span className="text-[10px] font-black uppercase">Efficiency</span>
                   </div>
-                  <p className="text-2xl font-black text-amber-600">{extraStats[idx]?.efficiency}%</p>
+                  <p className="text-2xl font-black text-amber-600">{extraStats[idx]?.efficiency || '0'}%</p>
                 </div>
               </div>
             </div>
           </div>
         ))}
 
-        {/* HUECOS VACÍOS (Opcional - Mantiene la estructura limpia) */}
         {selectedMigrations.length < 4 && 
           Array.from({ length: 4 - selectedMigrations.length }).map((_, i) => (
             <div key={`empty-${i}`} className="hidden lg:flex flex-col border-2 border-dashed border-slate-200 rounded-3xl bg-slate-100/30 items-center justify-center p-6">
@@ -137,9 +140,8 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
         }
       </div>
 
-      {/* 2. GRÀFICS (Iguales a VisualizeStages) */}
+      {/* 2. GRÁFICOS */}
       <div className="space-y-8">
-        {/* Latència - Usando AreaChart como en el visualizador individual */}
         <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
           <div className="mb-6 flex items-center gap-3 text-slate-400">
             <Clock size={18} />
@@ -170,7 +172,6 @@ export default function MigrationCompare({ selectedMigrations, onBack }) {
           </div>
         </div>
 
-        {/* Progreso Acumulado - Usando AreaChart (type="stepAfter") como en el visualizador individual */}
         <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
           <div className="mb-6 flex items-center gap-3 text-slate-400">
             <Layers size={18} />
