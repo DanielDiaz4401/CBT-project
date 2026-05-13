@@ -6,7 +6,7 @@ CREATE TYPE simulation_status AS ENUM (
     'running', 
     'completed', 
     'failed'
-    'error', 
+    'error'
 );
 
 -- 3. TABLA DE ARCHIVOS (Deduplicación)
