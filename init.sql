@@ -5,7 +5,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TYPE simulation_status AS ENUM (
     'running', 
     'completed', 
-    'failed'
+    'failed',
     'error'
 );
 
