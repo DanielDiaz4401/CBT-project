@@ -12,7 +12,7 @@ services:
     container_name: frontend
     build: ./frontend
     ports:
-      - "4321:4321"
+      - "4321:80"
     networks:
       - cbt_public
     environment:
