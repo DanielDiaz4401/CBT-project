@@ -15,6 +15,7 @@ from app.db import crud, session
 from app.schemas import migration as schemas
 from app.services.algorithm_handler import run_simulation_process
 from app.db.session import SessionLocal
+from app.utils import file_manager
 
 router = APIRouter(
     prefix="/simulations",
@@ -73,13 +74,20 @@ async def create_simulation(
         if not nodes_file or not edges_file or not paths_file:
             raise HTTPException(status_code=400, detail="Faltan archivos para la creación")
         
+        # 1. Leemos en memoria (asíncrono)
         n_content = await nodes_file.read()
         e_content = await edges_file.read()
         p_content = await paths_file.read()
 
-        nodes_id = crud.get_or_create_file(db, nodes_file.filename, n_content).id
-        edges_id = crud.get_or_create_file(db, edges_file.filename, e_content).id
-        paths_id = crud.get_or_create_file(db, paths_file.filename, p_content).id
+        # 2. Guardamos en disco sin bloquear el hilo principal (asíncrono)
+        n_path, n_hash, n_size = await file_manager.save_file_async(n_content, nodes_file.filename)
+        e_path, e_hash, e_size = await file_manager.save_file_async(e_content, edges_file.filename)
+        p_path, p_hash, p_size = await file_manager.save_file_async(p_content, paths_file.filename)
+
+        # 3. Guardamos el registro en base de datos (síncrono, manejado por SQLAlchemy)
+        nodes_id = crud.get_or_create_file_record(db, nodes_file.filename, n_path, n_hash, n_size).id
+        edges_id = crud.get_or_create_file_record(db, edges_file.filename, e_path, e_hash, e_size).id
+        paths_id = crud.get_or_create_file_record(db, paths_file.filename, p_path, p_hash, p_size).id
 
     try:
         blocked_comps_list = json.loads(blocked_components)

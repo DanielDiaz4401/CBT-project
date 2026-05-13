@@ -6,6 +6,7 @@ uvicorn[standard]      # Servidor ASGI para correr la aplicación
 sqlalchemy            # El ORM para los modelos
 psycopg2-binary       # Driver para conectar Python con PostgreSQL
 alembic               # (Recomendado) Para gestionar migraciones de base de datos
+aiofiles
 
 # --- Environment & Utils ---
 python-dotenv         # Para leer el archivo .env

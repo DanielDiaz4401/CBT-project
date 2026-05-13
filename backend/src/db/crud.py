@@ -7,25 +7,21 @@ from app.schemas import migration as schemas
 
 # --- 1. GESTIÓN DE ARCHIVOS ---
 
-def get_or_create_file(db: Session, filename: str, content: bytes) -> models.SimulationFile:
-    content_hash = hashlib.sha256(content).hexdigest()
+def get_or_create_file_record(db: Session, filename: str, file_path: str, content_hash: str, file_size: int) -> models.SimulationFile:
+    """
+    Solo gestiona la persistencia lógica en base de datos.
+    Asume que el archivo físico ya ha sido procesado por el file_manager.
+    """
     db_file = db.query(models.SimulationFile).filter(models.SimulationFile.content_hash == content_hash).first()
     
-    if db_file and os.path.exists(db_file.path):
+    if db_file:
         return db_file
-    
-    os.makedirs("storage/files", exist_ok=True)
-    extension = filename.split(".")[-1] if "." in filename else "csv"
-    file_path = f"storage/files/{content_hash}.{extension}"
-    
-    with open(file_path, "wb") as f:
-        f.write(content)
     
     db_file = models.SimulationFile(
         filename=filename,
         path=file_path,
         content_hash=content_hash,
-        file_size=len(content)
+        file_size=file_size
     )
     db.add(db_file)
     db.commit()
