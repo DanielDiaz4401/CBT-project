@@ -1,15 +1,25 @@
+import io
 import logging
-from sqlalchemy.orm import Session
-from uuid import UUID
 import traceback
 import numpy as np
+from sqlalchemy.orm import Session
+from uuid import UUID
 
 from app.db import crud, models
-from app.services.guangorithm import generate_migration_plan
 
-import io
+# 1. Importamos las funciones de cada algoritmo con alias
+from app.services.guangorithm import generate_migration_plan as run_guangorithm
+from app.services.robergorithm2 import generate_migration_plan as run_robergorithm_v2
+from app.services.robergorithm3 import generate_migration_plan as run_robergorithm_v3
 
-logger=logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
+
+# 2. PATRÓN STRATEGY: Diccionario que mapea el tipo de algoritmo a su función
+ALGORITHM_STRATEGIES = {
+    "guangorithm": run_guangorithm,
+    "robergorithm_v2": run_robergorithm_v2,
+    "robergorithm_v3": run_robergorithm_v3
+}
 
 def to_serializable(obj):
     if isinstance(obj, (np.integer, int)): return int(obj)
@@ -23,6 +33,7 @@ def run_simulation_process(db: Session, sim_id: UUID):
     if not sim: return
 
     try:
+        # Recuperamos archivos desde PostgreSQL en memoria (Fase 1)
         buffer_nodos = io.BytesIO(sim.nodes_file.content)
         buffer_aristas = io.BytesIO(sim.edges_file.content)
         buffer_paths = io.BytesIO(sim.paths_file.content)
@@ -32,13 +43,20 @@ def run_simulation_process(db: Session, sim_id: UUID):
         l_max = sim.l_max
         l_extra = sim.l_extra
         threshold = sim.threshold
-        crud.update_simulation_status(db, sim_id, models.SimulationStatus.RUNNING)
+
+        # 3. Extraemos el algoritmo seleccionado (por defecto guangorithm)
+        algo_type = getattr(sim, "algorithm_type", "guangorithm")
+        
+        # 4. Seleccionamos la estrategia (función) a ejecutar
+        algorithm_func = ALGORITHM_STRATEGIES.get(algo_type, run_guangorithm)
+        
+        logger.info(f"Ejecutando simulación {sim_id} con la estrategia: {algo_type}")
 
         bloqueos_db = db.query(models.BlockedComponents).filter_by(simulation_id=sim_id).all()
         bloqueos_lista = [{"component_name": b.component_name, "stage_number": b.stage_number} for b in bloqueos_db]
 
-        # 1. Ejecutar Algoritmo
-        migration_plan = generate_migration_plan(
+        # 5. Ejecutamos la función dinámica
+        migration_plan = algorithm_func(
             ruta_nodos=buffer_nodos,
             ruta_aristas=buffer_aristas,
             ruta_paths=buffer_paths,
@@ -47,10 +65,6 @@ def run_simulation_process(db: Session, sim_id: UUID):
             umbral=threshold,
             lista_bloqueos=bloqueos_lista
         )
-
-        if not crud.update_simulation_status(db, sim_id, models.SimulationStatus.RUNNING):
-            logger.error(f"La simulación {sim_id} fue eliminada por el usuario. Abortando guardado.")
-            return
         
         plan = to_serializable(migration_plan)
 

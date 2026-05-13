@@ -56,6 +56,7 @@ async def create_simulation(
     c_max: int = Form(...),
     l_max: float = Form(...),
     threshold: float = Form(...),
+    algorithm_type: str = Form("guangorithm"),
     blocked_components: str = Form("[]"),
     nodes_file: Optional[UploadFile] = File(None),
     edges_file: Optional[UploadFile] = File(None),
@@ -90,7 +91,7 @@ async def create_simulation(
         blocked_comps_list = []
 
     sim_data = schemas.SimulationCreate(
-        name=name, l_extra=l_extra, c_min=c_min, c_max=c_max, l_max=l_max, threshold=threshold
+        name=name, l_extra=l_extra, c_min=c_min, c_max=c_max, l_max=l_max, threshold=threshold, algorithm_type=algorithm_type
     )
 
     new_sim = crud.create_simulation(db, sim_data, nodes_id, edges_id, paths_id, blocked_comps_list)

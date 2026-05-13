@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from uuid import UUID
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
 # ==========================================
 # 1. ENUMERACIONES
@@ -40,6 +40,7 @@ class SimulationBase(BaseModel):
     c_max: int = Field(..., description="Capacidad máxima de migración de componentes por etapa", examples=[5])
     l_max: float = Field(..., description="Límite superior de latencia total permitida para considerar válida una ruta", examples=[150.0])
     threshold: float = Field(..., description="Umbral de tolerancia (%) para el cálculo heurístico del algoritmo", examples=[15.0])
+    algorithm_type: str = Field(default="guangorithm", description="Motor algorítmico utilizado para el cálculo de la ruta", examples=["guangorithm", "robergorithm_v2", "robergorithm_v3"])
 
 class SimulationCreate(SimulationBase):
     """Esquema interno usado para crear registros en la Base de Datos."""
@@ -66,6 +67,7 @@ class SimulationSummary(SimulationBase):
                 "c_max": 10,
                 "l_max": 200.0,
                 "threshold": 5.0,
+                "algorithm_type": "guangorithm",
                 "created_at": "2026-05-12T17:42:00Z",
                 "blocked_components": [{"component_name": "Core_DB_Proxy", "stage_number": 5}]
             }

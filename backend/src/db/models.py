@@ -19,6 +19,11 @@ class SimulationFileType(str, enum.Enum):
     edges = "edges"
     paths = "paths"
 
+class AlgorithmType(str, enum.Enum):
+    GUANGORITHM = "guangorithm"
+    ROBERGORITHM_V2 = "robergorithm_v2"
+    ROBERGORITHM_V3 = "robergorithm_v3"
+
 # --- TABLA DE ARCHIVOS (Para Deduplicación) ---
 class SimulationFile(Base):
     __tablename__ = "simulation_files"
@@ -45,6 +50,8 @@ class Simulation(Base):
     c_max = Column(Integer)
     l_max = Column(Float)
     threshold = Column(Float)
+
+    algorithm_type = Column(String, default="guangorithm") # <-- Nueva columna
     
     # IDs de archivos (Relacionados con SimulationFile)
     nodes_file_id = Column(Integer, ForeignKey("simulation_files.id"), nullable=True)
