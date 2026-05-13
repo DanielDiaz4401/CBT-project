@@ -5,12 +5,14 @@ import AlgorithmParamsForm from './AlgorithmParamsForm';
 export default function SetupModal({ onClose, onConfirm, isCalculating, templateData }) {
   const [migrationName, setMigrationName] = useState(templateData ? `${templateData.name} (Copy)` : '');
   const [files, setFiles] = useState({ edges: null, nodes: null, paths: null });
+  const [algorithmType, setAlgorithmType] = useState(templateData?.algorithm_type || 'guangorithm');
   const [params, setParams] = useState({ 
     c_min: templateData?.c_min ?? 1, 
     c_max: templateData?.c_max ?? 5, 
     l_max: templateData?.l_max ?? 150, 
     l_extra: templateData?.l_extra ?? 30,
-    threshold: templateData?.threshold ?? 10
+    threshold: templateData?.threshold ?? 10,
+    algorithm_type: templateData?.algorithm_type ?? 'guangorithm'
   });
 
   const [constraints, setConstraints] = useState(templateData?.blocked_components ? [...templateData.blocked_components] : []);
@@ -103,6 +105,7 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
     formData.append("c_max", cMax);
     formData.append("l_max", lMax);
     formData.append("threshold", threshold);
+    formData.append("algorithm_type", params.algorithm_type);
     formData.append("blocked_components", JSON.stringify(constraints));
 
     if (templateData) {
