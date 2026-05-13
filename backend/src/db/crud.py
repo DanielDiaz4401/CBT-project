@@ -1,9 +1,12 @@
 import os
+import logging
 import hashlib
 from sqlalchemy.orm import Session
 from uuid import UUID
 from . import models
 from app.schemas import migration as schemas
+
+logger = logging.getLogger(__name__)
 
 # --- 1. GESTIÓN DE ARCHIVOS ---
 
@@ -83,16 +86,19 @@ def delete_simulation(db: Session, sim_id: UUID):
     if not db_sim:
         return False
         
-    # Guardamos los IDs de los archivos ANTES de borrar la simulación
+    # 1. Guardamos los IDs de los archivos vinculados ANTES de destruir la simulación
     file_ids_to_check = {db_sim.nodes_file_id, db_sim.edges_file_id, db_sim.paths_file_id}
     
-    # Borrado en cascada (Elimina la simulación, etapas, etc.)
+    # 2. Borrado de la simulación. 
+    # PostgreSQL eliminará en cascada todas las etapas y rutas críticas gracias a models.py
     db.delete(db_sim)
     db.commit()
 
-    # Comprobación de archivos huérfanos
+    # 3. Garbage Collection: Limpieza de archivos huérfanos
     for f_id in file_ids_to_check:
         if not f_id: continue
+        
+        # Comprobamos si el archivo físico sigue siendo utilizado por alguna otra simulación
         is_used = db.query(models.Simulation).filter(
             (models.Simulation.nodes_file_id == f_id) | 
             (models.Simulation.edges_file_id == f_id) | 
@@ -102,10 +108,18 @@ def delete_simulation(db: Session, sim_id: UUID):
         if not is_used:
             db_file = db.query(models.SimulationFile).get(f_id)
             if db_file:
-                if os.path.exists(db_file.path):
-                    os.remove(db_file.path)
+                # Bloque de seguridad: Intentamos borrar el archivo físico
+                try:
+                    if os.path.exists(db_file.path):
+                        os.remove(db_file.path)
+                except OSError as e:
+                    # Registramos el error de infraestructura, pero permitimos que el borrado lógico continúe
+                    logger.warning(f"No se pudo eliminar el archivo físico huérfano {db_file.path}: {e}")
+                
+                # Eliminamos el registro de metadatos de la base de datos
                 db.delete(db_file)
     
+    # Consolidamos la limpieza de la tabla de archivos
     db.commit()
     return True
 
