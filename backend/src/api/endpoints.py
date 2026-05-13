@@ -8,7 +8,7 @@ from fastapi import (
     APIRouter, Depends, HTTPException, Form, File,
     UploadFile, status, BackgroundTasks, Request
 )
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.orm import Session
 
 from app.db import crud, session
@@ -74,20 +74,15 @@ async def create_simulation(
         if not nodes_file or not edges_file or not paths_file:
             raise HTTPException(status_code=400, detail="Faltan archivos para la creación")
         
-        # 1. Leemos en memoria (asíncrono)
+        # Leemos los bytes en memoria
         n_content = await nodes_file.read()
         e_content = await edges_file.read()
         p_content = await paths_file.read()
 
-        # 2. Guardamos en disco sin bloquear el hilo principal (asíncrono)
-        n_path, n_hash, n_size = await file_manager.save_file_async(n_content, nodes_file.filename)
-        e_path, e_hash, e_size = await file_manager.save_file_async(e_content, edges_file.filename)
-        p_path, p_hash, p_size = await file_manager.save_file_async(p_content, paths_file.filename)
-
-        # 3. Guardamos el registro en base de datos (síncrono, manejado por SQLAlchemy)
-        nodes_id = crud.get_or_create_file_record(db, nodes_file.filename, n_path, n_hash, n_size).id
-        edges_id = crud.get_or_create_file_record(db, edges_file.filename, e_path, e_hash, e_size).id
-        paths_id = crud.get_or_create_file_record(db, paths_file.filename, p_path, p_hash, p_size).id
+        # Los mandamos directamente a PostgreSQL
+        nodes_id = crud.get_or_create_file(db, nodes_file.filename, n_content).id
+        edges_id = crud.get_or_create_file(db, edges_file.filename, e_content).id
+        paths_id = crud.get_or_create_file(db, paths_file.filename, p_content).id
 
     try:
         blocked_comps_list = json.loads(blocked_components)
@@ -238,11 +233,12 @@ async def stream_status(request: Request):
 @router.get("/{sim_id}/artifacts/{file_type}")
 def get_simulation_artifact(sim_id: UUID, file_type: schemas.SimulationFileType, db: Session = Depends(session.get_db)):
     file_record = crud.get_file_by_type(db, sim_id, file_type.value)
-    if not file_record or not os.path.exists(file_record.path):
-        raise HTTPException(status_code=404)
+    if not file_record:
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
     
-    return FileResponse(
-        path=file_record.path, 
-        filename=f"{file_type.value}_{sim_id}.csv",
-        media_type='text/csv'
+    # Construimos una respuesta directa desde la memoria
+    return Response(
+        content=file_record.content, 
+        media_type='text/csv',
+        headers={"Content-Disposition": f"attachment; filename={file_type.value}_{sim_id}.csv"}
     )

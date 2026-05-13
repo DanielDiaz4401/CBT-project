@@ -7,6 +7,8 @@ import numpy as np
 from app.db import crud, models
 from app.services.guangorithm import generate_migration_plan
 
+import io
+
 logger=logging.getLogger(__name__)
 
 def to_serializable(obj):
@@ -21,9 +23,9 @@ def run_simulation_process(db: Session, sim_id: UUID):
     if not sim: return
 
     try:
-        ruta_nodos = sim.nodes_file.path
-        ruta_aristas = sim.edges_file.path
-        ruta_paths = sim.paths_file.path
+        buffer_nodos = io.BytesIO(sim.nodes_file.content)
+        buffer_aristas = io.BytesIO(sim.edges_file.content)
+        buffer_paths = io.BytesIO(sim.paths_file.content)
         
         c_min = sim.c_min
         c_max = sim.c_max
@@ -37,9 +39,9 @@ def run_simulation_process(db: Session, sim_id: UUID):
 
         # 1. Ejecutar Algoritmo
         migration_plan = generate_migration_plan(
-            ruta_nodos=ruta_nodos,
-            ruta_aristas=ruta_aristas,
-            ruta_paths=ruta_paths,
+            ruta_nodos=buffer_nodos,
+            ruta_aristas=buffer_aristas,
+            ruta_paths=buffer_paths,
             c_min=c_min, c_max=c_max,
             l_max=l_max, l_extra=l_extra,
             umbral=threshold,
