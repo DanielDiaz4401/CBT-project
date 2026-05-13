@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Download } from 'lucide-react'; 
+import { Download, FileJson, FileSpreadsheet } from 'lucide-react'; // Añadimos iconos más semánticos
 import toast from 'react-hot-toast';
 
 export default function ExportStages({ migration }) {
   const [stagesData, setStagesData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-const API_BASE = import.meta.env.PUBLIC_API_BASE_URL;
+  const API_BASE = import.meta.env.PUBLIC_API_BASE_URL;
 
   useEffect(() => {
     if (migration?.id) {
@@ -27,10 +27,10 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE_URL;
     }
   }, [migration.id]);
 
+  // --- EXPORTAR A JSON ---
   const handleExportJSON = () => {
     if (stagesData.length === 0) return;
 
-    // Translated index to 'stage'
     const exportData = stagesData.map((s, i) => ({ stage: i, ...s }));
     
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
@@ -42,10 +42,42 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE_URL;
     downloadAnchorNode.remove();
   };
 
+  // --- EXPORTAR A CSV (NUEVO) ---
+  const handleExportCSV = () => {
+    if (stagesData.length === 0) return;
+
+    // 1. Definir cabeceras
+    const headers = ["Stage", "Migrated Components", "Worst Critical Time (ms)"];
+
+    // 2. Mapear los datos a filas CSV
+    const rows = stagesData.map((stage, index) => {
+      // Envolvemos el array de componentes en comillas para que las comas no rompan las columnas
+      const componentsString = `"${stage.migrated_components.join(', ')}"`;
+      
+      return [
+        index,
+        componentsString,
+        stage.worst_critical_time.toFixed(4)
+      ].join(",");
+    });
+
+    // 3. Unir cabeceras y filas con saltos de línea
+    const csvContent = [headers.join(","), ...rows].join("\n");
+
+    // 4. Crear el Blob y descargar
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `migration_report_${migration.name || 'data'}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleDownloadArtifact = (fileType) => {
     if (!migration) return;
 
-    // Actualizado al nuevo endpoint REST
     const url = `${API_BASE}/${migration.id}/artifacts/${fileType}`;
 
     fetch(url)
@@ -72,37 +104,53 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE_URL;
   return (
     <div className="flex flex-col h-full bg-slate-50">
       {/* Header / Actions */}
-      <div className="bg-white p-8 border-b border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="bg-white p-8 border-b border-slate-200 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-6">
         <div>
           <h2 className="text-2xl font-black text-slate-800 mb-2">Export Data</h2>
           <p className="text-slate-500 text-sm">Download configuration artifacts or the final stage report.</p>
         </div>
 
-        <div className="flex gap-3">
-          <button 
-            onClick={handleExportJSON}
-            className="flex items-center gap-2 px-6 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold shadow-lg transition-all"
-          >
-            <Download size={18} />
-            <span>Download Stages (JSON)</span>
-          </button>
+        <div className="flex flex-wrap items-center gap-4">
+          
+          {/* Botones de Exportación del Reporte */}
+          <div className="flex gap-2">
+            <button 
+              onClick={handleExportCSV}
+              className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md shadow-emerald-600/20 transition-all text-sm"
+            >
+              <FileSpreadsheet size={18} />
+              <span>Report CSV</span>
+            </button>
 
-          {/* New specific download buttons for CSVs */}
-          <div className="flex bg-slate-100 rounded-xl p-1 border border-slate-200">
+            <button 
+              onClick={handleExportJSON}
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold shadow-md transition-all text-sm"
+            >
+              <FileJson size={18} />
+              <span>Report JSON</span>
+            </button>
+          </div>
+
+          <div className="w-px h-8 bg-slate-200 hidden sm:block"></div>
+
+          {/* Artefactos Base (Nodos, Aristas, Paths) */}
+          <div className="flex bg-slate-100 rounded-xl p-1.5 border border-slate-200">
             {['nodes', 'edges', 'paths'].map(type => (
               <button
                 key={type}
                 onClick={() => handleDownloadArtifact(type)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-white hover:text-blue-600 hover:shadow-sm rounded-lg transition-all capitalize"
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-white hover:text-blue-600 hover:shadow-sm rounded-lg transition-all capitalize"
+                title={`Download original ${type} file`}
               >
-                {type} CSV
+                <Download size={14} />
+                {type}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Data Preview (Kept your original table design) */}
+      {/* Data Preview */}
       <div className="flex-1 overflow-auto p-8">
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <table className="w-full text-left">
