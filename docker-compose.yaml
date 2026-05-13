@@ -1,11 +1,22 @@
+version: '3.8'
+
+networks:
+  cbt_public:
+    driver: bridge
+  cbt_internal:
+    driver: bridge
+    internal: true
+
 services:
   frontend:
     container_name: frontend
     build: ./frontend
     ports:
       - "4321:4321"
-    #environment:
-    #  - BACKEND_URL=http://backend:3000
+    networks:
+      - cbt_public
+    environment:
+      - PUBLIC_API_BASE_URL=http://localhost:8000/simulations
     volumes:
       - ./frontend/src:/app
       - /app/node_modules
@@ -16,9 +27,13 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - db
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/simulations
+      db:
+        condition: service_healthy  # <-- Esperamos a que el healthcheck pase
+    networks:
+      - cbt_public
+      - cbt_internal
+    env_file:
+      - ./backend/src/.env
     volumes:
       - ./backend/src:/app/app
       - backend_storage:/app/storage
@@ -27,14 +42,21 @@ services:
     image: postgres:15-alpine
     container_name: postgres_db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: simulations
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: cbt_db_migrations
     ports:
       - "5432:5432"
+    networks:
+      - cbt_internal
     volumes:
-      #- pgdata:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    # --- NUEVO BLOQUE: Comprobación de salud ---
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   pgdata:

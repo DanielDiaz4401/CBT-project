@@ -13,7 +13,7 @@ CREATE TYPE simulation_status AS ENUM (
 CREATE TABLE simulation_files (
     id SERIAL PRIMARY KEY,
     filename VARCHAR(255) NOT NULL,
-    path TEXT NOT NULL UNIQUE,
+    content BYTEA NOT NULL,
     content_hash VARCHAR(64) NOT NULL UNIQUE, -- SHA-256
     file_size INTEGER,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -32,6 +32,7 @@ CREATE TABLE simulations (
     c_max INTEGER,
     l_max FLOAT,
     threshold FLOAT,
+    algorithm_type VARCHAR(50) DEFAULT 'guangorithm',
     
     -- Llaves foráneas a la tabla de archivos
     nodes_file_id INTEGER REFERENCES simulation_files(id) ON DELETE SET NULL,

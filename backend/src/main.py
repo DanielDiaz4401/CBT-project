@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.endpoints import router as simulations_router
-from app.config import settings  # <-- Nueva importación
+from app.core.config import settings
 from app.db.session import SessionLocal
 from app.db import models
 
@@ -17,7 +17,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         orphaned_sims = db.query(models.Simulation).filter(
-            models.Simulation.status.filter(models.Simulation.status == models.SimulationStatus.RUNNING)
+                    models.Simulation.status == models.SimulationStatus.RUNNING
         ).all()
         if orphaned_sims:
             for sim in orphaned_sims:
