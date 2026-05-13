@@ -23,7 +23,7 @@ CREATE TABLE simulation_files (
 CREATE TABLE simulations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
-    status simulation_status DEFAULT 'runnning',
+    status simulation_status DEFAULT 'running',
     error_message TEXT,
     
     -- Parámetros técnicos
