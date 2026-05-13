@@ -82,8 +82,7 @@ export default function SimulationsTable({
                   <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                     m.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
                     m.status === 'failed' ? 'bg-amber-100 text-amber-700' :
-                    m.status === 'error' ? 'bg-red-100 text-red-700' :
-                    m.status === 'pending' ? 'bg-slate-100 text-slate-700' : 'bg-blue-100 text-blue-700 animate-pulse'
+                    m.status === 'error' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700 animate-pulse'
                   }`}>{m.status}</span>
                 </td>
                 <td className="p-4 text-right">

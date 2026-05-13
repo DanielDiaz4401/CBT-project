@@ -17,10 +17,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         orphaned_sims = db.query(models.Simulation).filter(
-            models.Simulation.status.in_([
-                models.SimulationStatus.PENDING,
-                models.SimulationStatus.RUNNING
-            ])
+            models.Simulation.status.filter(models.Simulation.status == models.SimulationStatus.RUNNING)
         ).all()
         if orphaned_sims:
             for sim in orphaned_sims:

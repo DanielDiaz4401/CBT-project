@@ -10,7 +10,6 @@ from typing import List, Optional, Dict, Any
 
 class SimulationStatus(str, Enum):
     """Estados posibles por los que pasa una simulación en su ciclo de vida."""
-    PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"

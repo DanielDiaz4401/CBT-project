@@ -195,9 +195,6 @@ def get_path_topology(sim_id: UUID, path_num: int, db: Session = Depends(session
 @router.get("/events/stream")
 async def stream_status(request: Request):
     async def event_generator():
-        # ESTADO LOCAL POR CONEXIÓN: 
-        # Esto hace que la API sea stateless a nivel global. Cada usuario que se conecte
-        # tendrá su propia lista temporal de lo que estaba "viendo" ejecutarse.
         tracked_sims = set()
         
         while True:
@@ -205,41 +202,34 @@ async def stream_status(request: Request):
 
             db = SessionLocal()
             try:
-                # 1. Obtenemos solo las simulaciones que están activas en la BD (Single Source of Truth)
+                # 1. Obtenemos solo las simulaciones que están activas en la BD
                 active_sims = db.query(crud.models.Simulation).filter(
-                    crud.models.Simulation.status.in_([
-                        schemas.SimulationStatus.PENDING, 
-                        schemas.SimulationStatus.RUNNING
-                    ])
+                    crud.models.Simulation.status == schemas.SimulationStatus.RUNNING # <-- Solo buscamos RUNNING
                 ).all()
                 
                 current_active_ids = {str(sim.id) for sim in active_sims}
                 
-                # 2. Identificamos las simulaciones que estábamos trackeando pero que ya no están activas 
-                # (es decir, acaban de pasar a COMPLETED, FAILED o ERROR)
+                # 2. Identificamos las que acaban de terminar
                 finished_ids = tracked_sims - current_active_ids
                 
-                # 3. Emitimos el estado en vivo de las que siguen corriendo
+                # 3. Emitimos en vivo
                 for sim in active_sims:
                     yield f"data: {json.dumps({'id': str(sim.id), 'status': sim.status.value})}\n\n"
                 
-                # 4. Emitimos el evento FINAL para las que acaban de terminar
-                # Esto asegura que el frontend reciba el aviso para cerrar su ciclo de carga
+                # 4. Emitimos evento final
                 for f_id in finished_ids:
                     finished_sim = crud.get_simulation(db, f_id)
                     if finished_sim:
                         yield f"data: {json.dumps({'id': str(finished_sim.id), 'status': finished_sim.status.value})}\n\n"
                         
-                # 5. Actualizamos nuestra memoria local con la foto actual
+                # 5. Actualizamos memoria local
                 tracked_sims = current_active_ids
                 
             except Exception as e:
-                # Evitamos que un fallo temporal de base de datos rompa el stream silenciosamente
                 pass 
             finally:
                 db.close()
             
-            # Reducimos ligeramente la frecuencia de polling para no saturar la BD
             await asyncio.sleep(1.5)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

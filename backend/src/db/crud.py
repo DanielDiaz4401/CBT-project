@@ -48,7 +48,7 @@ def create_simulation(db: Session, sim_data: schemas.SimulationCreate, nodes_id:
         nodes_file_id=nodes_id,
         edges_file_id=edges_id,
         paths_file_id=paths_id,
-        status=models.SimulationStatus.PENDING
+        status=models.SimulationStatus.RUNNING  # <-- Nace directamente en estado RUNNING
     )
     db.add(db_sim)
     db.commit()

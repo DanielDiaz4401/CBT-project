@@ -3,7 +3,6 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 2. ENUM de estado (Sincronizado con models.py)
 CREATE TYPE simulation_status AS ENUM (
-    'pending', 
     'running', 
     'completed', 
     'failed'
@@ -24,7 +23,7 @@ CREATE TABLE simulation_files (
 CREATE TABLE simulations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
-    status simulation_status DEFAULT 'pending',
+    status simulation_status DEFAULT 'runnning',
     error_message TEXT,
     
     -- Parámetros técnicos

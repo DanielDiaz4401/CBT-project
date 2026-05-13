@@ -9,7 +9,6 @@ Base = declarative_base()
 
 # --- ENUMS ---
 class SimulationStatus(str, enum.Enum):
-    PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -37,7 +36,7 @@ class Simulation(Base):
     
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
-    status = Column(Enum(SimulationStatus, name="simulation_status", values_callable=lambda obj: [e.value for e in obj]), default=SimulationStatus.PENDING)
+    status = Column(Enum(SimulationStatus, name="simulation_status", values_callable=lambda obj: [e.value for e in obj]), default=SimulationStatus.RUNNING)
     error_message = Column(String, nullable=True)
     
     # Parámetros de la simulación
