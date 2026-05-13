@@ -21,9 +21,6 @@ router = APIRouter(
     tags=["Simulations"]
 )
 
-# Seguimiento de tareas para SSE
-pending_tasks = set()
-
 def run_simulation_process_bg(sim_id: UUID):
     db = SessionLocal()
     try:
@@ -95,7 +92,6 @@ async def create_simulation(
 
     new_sim = crud.create_simulation(db, sim_data, nodes_id, edges_id, paths_id, blocked_comps_list)
     
-    pending_tasks.add(new_sim.id)
     background_tasks.add_task(run_simulation_process_bg, new_sim.id)
 
     return new_sim
@@ -124,7 +120,6 @@ def update_simulation(sim_id: UUID, name: str = None, db: Session = Depends(sess
 def delete_simulation(sim_id: UUID, db: Session = Depends(session.get_db)):
     if not crud.delete_simulation(db, sim_id):
         raise HTTPException(status_code=404)
-    pending_tasks.discard(sim_id)
     return None
 
 # ==========================================
@@ -192,23 +187,52 @@ def get_path_topology(sim_id: UUID, path_num: int, db: Session = Depends(session
 @router.get("/events/stream")
 async def stream_status(request: Request):
     async def event_generator():
+        # ESTADO LOCAL POR CONEXIÓN: 
+        # Esto hace que la API sea stateless a nivel global. Cada usuario que se conecte
+        # tendrá su propia lista temporal de lo que estaba "viendo" ejecutarse.
+        tracked_sims = set()
+        
         while True:
             if await request.is_disconnected(): break
-            if not pending_tasks:
-                await asyncio.sleep(2)
-                continue
 
             db = SessionLocal()
             try:
-                for sim_id in list(pending_tasks):
-                    sim = crud.get_simulation(db, sim_id)
-                    if not sim: continue
-                    yield f"data: {json.dumps({'id': str(sim_id), 'status': sim.status.value})}\n\n"
-                    if sim.status in [schemas.SimulationStatus.COMPLETED, schemas.SimulationStatus.FAILED]:
-                        pending_tasks.discard(sim_id)
+                # 1. Obtenemos solo las simulaciones que están activas en la BD (Single Source of Truth)
+                active_sims = db.query(crud.models.Simulation).filter(
+                    crud.models.Simulation.status.in_([
+                        schemas.SimulationStatus.PENDING, 
+                        schemas.SimulationStatus.RUNNING
+                    ])
+                ).all()
+                
+                current_active_ids = {str(sim.id) for sim in active_sims}
+                
+                # 2. Identificamos las simulaciones que estábamos trackeando pero que ya no están activas 
+                # (es decir, acaban de pasar a COMPLETED, FAILED o ERROR)
+                finished_ids = tracked_sims - current_active_ids
+                
+                # 3. Emitimos el estado en vivo de las que siguen corriendo
+                for sim in active_sims:
+                    yield f"data: {json.dumps({'id': str(sim.id), 'status': sim.status.value})}\n\n"
+                
+                # 4. Emitimos el evento FINAL para las que acaban de terminar
+                # Esto asegura que el frontend reciba el aviso para cerrar su ciclo de carga
+                for f_id in finished_ids:
+                    finished_sim = crud.get_simulation(db, f_id)
+                    if finished_sim:
+                        yield f"data: {json.dumps({'id': str(finished_sim.id), 'status': finished_sim.status.value})}\n\n"
+                        
+                # 5. Actualizamos nuestra memoria local con la foto actual
+                tracked_sims = current_active_ids
+                
+            except Exception as e:
+                # Evitamos que un fallo temporal de base de datos rompa el stream silenciosamente
+                pass 
             finally:
                 db.close()
-            await asyncio.sleep(1)
+            
+            # Reducimos ligeramente la frecuencia de polling para no saturar la BD
+            await asyncio.sleep(1.5)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
