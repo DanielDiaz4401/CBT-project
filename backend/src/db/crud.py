@@ -10,11 +10,8 @@ logger = logging.getLogger(__name__)
 
 # --- 1. GESTIÓN DE ARCHIVOS ---
 
-def get_or_create_file_record(db: Session, filename: str, file_path: str, content_hash: str, file_size: int) -> models.SimulationFile:
-    """
-    Solo gestiona la persistencia lógica en base de datos.
-    Asume que el archivo físico ya ha sido procesado por el file_manager.
-    """
+def get_or_create_file(db: Session, filename: str, content: bytes) -> models.SimulationFile:
+    content_hash = hashlib.sha256(content).hexdigest()
     db_file = db.query(models.SimulationFile).filter(models.SimulationFile.content_hash == content_hash).first()
     
     if db_file:
@@ -22,9 +19,9 @@ def get_or_create_file_record(db: Session, filename: str, file_path: str, conten
     
     db_file = models.SimulationFile(
         filename=filename,
-        path=file_path,
+        content=content, # <-- Guardamos los bytes directamente en Postgres
         content_hash=content_hash,
-        file_size=file_size
+        file_size=len(content)
     )
     db.add(db_file)
     db.commit()
@@ -86,19 +83,14 @@ def delete_simulation(db: Session, sim_id: UUID):
     if not db_sim:
         return False
         
-    # 1. Guardamos los IDs de los archivos vinculados ANTES de destruir la simulación
     file_ids_to_check = {db_sim.nodes_file_id, db_sim.edges_file_id, db_sim.paths_file_id}
     
-    # 2. Borrado de la simulación. 
-    # PostgreSQL eliminará en cascada todas las etapas y rutas críticas gracias a models.py
     db.delete(db_sim)
     db.commit()
 
-    # 3. Garbage Collection: Limpieza de archivos huérfanos
+    # Garbage Collection: Limpieza de archivos huérfanos solo en DB
     for f_id in file_ids_to_check:
         if not f_id: continue
-        
-        # Comprobamos si el archivo físico sigue siendo utilizado por alguna otra simulación
         is_used = db.query(models.Simulation).filter(
             (models.Simulation.nodes_file_id == f_id) | 
             (models.Simulation.edges_file_id == f_id) | 
@@ -108,18 +100,8 @@ def delete_simulation(db: Session, sim_id: UUID):
         if not is_used:
             db_file = db.query(models.SimulationFile).get(f_id)
             if db_file:
-                # Bloque de seguridad: Intentamos borrar el archivo físico
-                try:
-                    if os.path.exists(db_file.path):
-                        os.remove(db_file.path)
-                except OSError as e:
-                    # Registramos el error de infraestructura, pero permitimos que el borrado lógico continúe
-                    logger.warning(f"No se pudo eliminar el archivo físico huérfano {db_file.path}: {e}")
-                
-                # Eliminamos el registro de metadatos de la base de datos
-                db.delete(db_file)
+                db.delete(db_file) # <-- ¡Adiós os.remove() y OSError!
     
-    # Consolidamos la limpieza de la tabla de archivos
     db.commit()
     return True
 

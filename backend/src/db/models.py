@@ -1,6 +1,6 @@
 import enum
 import uuid
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Enum, LargeBinary
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY, UUID as PG_UUID
@@ -24,9 +24,9 @@ class SimulationFile(Base):
     __tablename__ = "simulation_files"
     
     id = Column(Integer, primary_key=True, index=True)
-    filename = Column(String, nullable=False)        # Nombre original subido
-    path = Column(String, nullable=False, unique=True) # Ruta física en storage/
-    content_hash = Column(String, nullable=False, unique=True) # SHA-256 único
+    filename = Column(String, nullable=False)        
+    content = Column(LargeBinary, nullable=False) 
+    content_hash = Column(String, nullable=False, unique=True) 
     file_size = Column(Integer)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
