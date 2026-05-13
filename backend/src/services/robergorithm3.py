@@ -497,7 +497,7 @@ def generate_migration_plan(ruta_nodos, ruta_aristas, ruta_paths, c_min, c_max, 
         )
 
         etapa += 1
-        print(f"Etapa {etapa}: {nodos_etapa}")
+        #print(f"Etapa {etapa}: {nodos_etapa}")
 
         etapas_output.append({
             "stage_number": etapa,
@@ -527,6 +527,7 @@ def generate_migration_plan(ruta_nodos, ruta_aristas, ruta_paths, c_min, c_max, 
     return {
         "etapas": etapas_output,
         "rutas_criticas": rutas_criticas_output,
+        "meets_requirements": not fallback_iniciado
     }
 
 """

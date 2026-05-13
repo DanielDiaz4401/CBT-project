@@ -130,7 +130,7 @@ def process_paths(paths_df, pending_components, method_to_component, edges_dict,
     # Calcular latencias iniciales, teniendo en cuenta que en un mismo camino pueden haber paralelismos
     for path_id, path_info in paths_dict.items():
         path_info["current_total"] = calculate_path_latency(path_info, pending_components, method_to_component, l_extra)
-    print(f"[Paths] {len(paths_dict)} paths cargados")
+    #print(f"[Paths] {len(paths_dict)} paths cargados")
 
     return paths_dict
 
@@ -315,9 +315,9 @@ def compute_clusters(nodes_df, edges_df, method_to_component,
         )
 
     cluster_sizes = sorted((len(m) for m in partition), reverse=True)
-    print(f"[Leiden/{method}] {len(partition)} clusters | "
-          f"top5={cluster_sizes[:5]} | "
-          f"singletons={sum(1 for s in cluster_sizes if s == 1)}")
+    #print(f"[Leiden/{method}] {len(partition)} clusters | "
+    #      f"top5={cluster_sizes[:5]} | "
+    #      f"singletons={sum(1 for s in cluster_sizes if s == 1)}")
 
     return {all_components[node_idx]: cluster_id
             for cluster_id, members in enumerate(partition)
