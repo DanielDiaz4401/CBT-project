@@ -129,7 +129,7 @@ def procesar(edges_with_time_file, nodes_file, paths_file, l_extra=30,
     esto es de todos los nodos
     """
     # ── 6. paths_componentes ─────────────────────────────────────────────────
-    def traducir_y_limpiar_ciclos(linea):
+    def traducir_y_limpiar(linea):
         try:
             linea = linea.strip().strip('"')
             tuplas_nodos = ast.literal_eval(linea)
@@ -141,21 +141,15 @@ def procesar(edges_with_time_file, nodes_file, paths_file, l_extra=30,
                 if c1 != c2 and tupla not in vistas:
                     tuplas_comp.append(tupla)
                     vistas.add(tupla)
-            G = nx.DiGraph()
-            for o, d in tuplas_comp:
-                G.add_edge(o, d)
-            while not nx.is_directed_acyclic_graph(G):
-                ciclo = nx.find_cycle(G, orientation='original')
-                G.remove_edge(ciclo[0][0], ciclo[0][1])
-            return str(list(G.edges()))
+            return str(tuplas_comp)
         except Exception as e:
             print(f"Error en path: {linea} → {e}")
             return str([])
 
     paths_comp_df = paths_df.copy()
-    paths_comp_df['full_path'] = paths_comp_df['full_path'].apply(traducir_y_limpiar_ciclos)
+    paths_comp_df['full_path'] = paths_comp_df['full_path'].apply(traducir_y_limpiar)
     """
-    Traduce los paths de nodos a componentes, elimina ciclos y duplicados
+    Traduce los paths de nodos a componentes, elimina duplicados
     es solo criticos
     """
 
@@ -226,7 +220,7 @@ def _columna_id_componente(df_nodos):
     if 'component' in df_nodos.columns:
         return 'component'
     raise KeyError("No se encontró columna de identificador de componente ('Id' o 'component').")
-
+"""
 def _build_graphs(df_aristas, df_crit_paths):
     G = nx.DiGraph()
     for _, row in df_aristas.iterrows():
@@ -241,8 +235,22 @@ def _build_graphs(df_aristas, df_crit_paths):
                 G_crit.add_edge(source, target)
 
     return G, G_crit
+"""
 
+def _build_graphs(df_aristas, crit_paths_parsed):
+    G = nx.DiGraph()
+    for _, row in df_aristas.iterrows():
+        G.add_edge(row['invoker'], row['invoked'], avg_time=row['avg_time'])
 
+    G_crit = nx.DiGraph()
+    for edges in crit_paths_parsed:  # Ya está parseado
+        for source, target in edges:
+            if G.has_edge(source, target):
+                G_crit.add_edge(source, target, avg_time=G[source][target]['avg_time'])
+            else:
+                G_crit.add_edge(source, target)
+
+    return G, G_crit
 
 def evaluar_migracion(nodo, G_crit, df_crit_paths, estado, l_extra, umbral_pct=10):
 
@@ -255,6 +263,13 @@ def evaluar_migracion(nodo, G_crit, df_crit_paths, estado, l_extra, umbral_pct=1
     def ramas_raiz_hoja(ruta):
         G_ruta = nx.DiGraph()
         G_ruta.add_edges_from(ruta)
+        while not nx.is_directed_acyclic_graph(G_ruta):
+            ciclo = nx.find_cycle(G_ruta, orientation='original')
+            arista = min(
+                ciclo,
+                key=lambda e: G_crit[e[0]][e[1]].get('avg_time', 0) if G_crit.has_edge(e[0], e[1]) else 0
+            )
+            G_ruta.remove_edge(arista[0], arista[1])
         raices = [n for n in G_ruta.nodes() if G_ruta.in_degree(n) == 0]
         hojas = [n for n in G_ruta.nodes() if G_ruta.out_degree(n) == 0]
         ramas = []
@@ -367,15 +382,6 @@ def _seleccionar_validos(G, G_crit, df_crit_paths, estado, c_min, c_max, l_extra
 
 
 def _calculate_path_latency_components(edges_data, estado, l_extra):
-    """
-    edges_data: lista de tuplas (comp_invoker, comp_invoked, base_latency)
-    estado: dict {component: 'on-prem' | 'cloud'}
-    l_extra: penalización por cruce de frontera (se aplica dinámicamente según estado)
-
-    base_latency NO incluye l_extra; se recalcula en cada llamada según el estado
-    actual de migración, de forma que migrar componentes a cloud refleja el cambio
-    real de penalización cross-boundary.
-    """
     acc_latency = {}
     for comp_invoker, comp_invoked, base_latency in edges_data:
         crossing = l_extra if estado.get(comp_invoker) != estado.get(comp_invoked) else 0
@@ -405,9 +411,9 @@ def generate_migration_plan(ruta_nodos, ruta_aristas, ruta_paths, c_min, c_max, 
 
     crit_paths_parsed = [ast.literal_eval(p) for p in df_crit_paths['full_path']]
 
-    G, G_crit = _build_graphs(df_aristas, df_crit_paths)
+    G, G_crit = _build_graphs(df_aristas, crit_paths_parsed)
 
-    # Construir paths_info para tracking de rutas críticas
+    # dani
     edge_latency_lookup = {
         (row['invoker'], row['invoked']): row['avg_time']
         for _, row in df_aristas.iterrows()
