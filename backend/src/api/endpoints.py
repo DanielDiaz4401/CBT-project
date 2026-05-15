@@ -213,36 +213,28 @@ def get_path_topology(sim_id: UUID, path_num: int, db: Session = Depends(session
 @router.get("/events/stream")
 async def stream_status(request: Request):
     async def event_generator():
-        tracked_sims = set()
+        # Memoria de los estados que ya le hemos enviado al frontend
+        last_sent_status = {}
         
         while True:
             if await request.is_disconnected(): break
 
             db = SessionLocal()
             try:
-                # 1. Obtenemos solo las simulaciones que están activas en la BD
-                active_sims = db.query(crud.models.Simulation).filter(
-                    crud.models.Simulation.status == schemas.SimulationStatus.RUNNING # <-- Solo buscamos RUNNING
-                ).all()
+                # Miramos las 50 simulaciones más recientes
+                recent_sims = db.query(crud.models.Simulation).order_by(
+                    crud.models.Simulation.created_at.desc()
+                ).limit(50).all()
                 
-                current_active_ids = {str(sim.id) for sim in active_sims}
-                
-                # 2. Identificamos las que acaban de terminar
-                finished_ids = tracked_sims - current_active_ids
-                
-                # 3. Emitimos en vivo
-                for sim in active_sims:
-                    yield f"data: {json.dumps({'id': str(sim.id), 'status': sim.status.value})}\n\n"
-                
-                # 4. Emitimos evento final
-                for f_id in finished_ids:
-                    finished_sim = crud.get_simulation(db, f_id)
-                    if finished_sim:
-                        yield f"data: {json.dumps({'id': str(finished_sim.id), 'status': finished_sim.status.value})}\n\n"
+                for sim in recent_sims:
+                    current_status = sim.status.value
+                    
+                    # Si nunca le hemos enviado este estado al frontend, se lo enviamos
+                    if last_sent_status.get(str(sim.id)) != current_status:
+                        yield f"data: {json.dumps({'id': str(sim.id), 'status': current_status})}\n\n"
+                        # Registramos que ya conoce este estado para no hacer spam
+                        last_sent_status[str(sim.id)] = current_status
                         
-                # 5. Actualizamos memoria local
-                tracked_sims = current_active_ids
-                
             except Exception as e:
                 pass 
             finally:
