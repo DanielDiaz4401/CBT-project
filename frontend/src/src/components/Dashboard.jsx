@@ -39,40 +39,28 @@ useEffect(() => {
     sse.onmessage = async (event) => {
       const update = JSON.parse(event.data);
 
-      // Si la simulación ha fallado, pedimos a la API el objeto completo 
-      // para traer el 'error_message' que el backend guardó en la base de datos.
       if (update.status === 'error' || update.status === 'failed') {
         try {
           const res = await fetch(`${API_BASE}/${update.id}`);
-          if (!res.ok) throw new Error("Failed to fetch fresh data");
+          if (!res.ok) throw new Error("Failed to fetch");
           const freshData = await res.json();
           
-          setMigrations(prev => prev.map(m =>
-            m.id === update.id ? freshData : m
-          ));
-
+          setMigrations(prev => prev.map(m => m.id === update.id ? freshData : m));
           if (selectedMigration && selectedMigration.id === update.id) {
             setSelectedMigration(freshData);
           }
         } catch (err) {
-          console.error("Error al refrescar detalle tras fallo:", err);
+          console.error("Error al refrescar detalle:", err);
         }
       } else {
-        // Si todo va bien (running o completed), solo actualizamos el status para no saturar la red
-        setMigrations(prev => prev.map(m =>
-          m.id === update.id ? { ...m, status: update.status } : m
-        ));
-
+        setMigrations(prev => prev.map(m => m.id === update.id ? { ...m, status: update.status } : m));
         if (selectedMigration && selectedMigration.id === update.id) {
           setSelectedMigration(prev => ({ ...prev, status: update.status }));
         }
       }
     };
 
-    sse.onerror = () => {
-      console.error("SSE connection error.");
-    };
-
+    sse.onerror = () => console.error("SSE connection error.");
     return () => sse.close();
   }, [selectedMigration]);
 
