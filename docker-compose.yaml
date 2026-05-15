@@ -1,5 +1,3 @@
-version: '3.8'
-
 networks:
   cbt_public:
     driver: bridge
@@ -12,7 +10,7 @@ services:
     container_name: frontend
     build: ./frontend
     ports:
-      - "4321:80"
+      - "4321:4321"
     networks:
       - cbt_public
     environment:
@@ -28,7 +26,7 @@ services:
       - "8000:8000"
     depends_on:
       db:
-        condition: service_healthy  # <-- Esperamos a que el healthcheck pase
+        condition: service_healthy
     networks:
       - cbt_public
       - cbt_internal
@@ -51,7 +49,6 @@ services:
       - cbt_internal
     volumes:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-    # --- NUEVO BLOQUE: Comprobación de salud ---
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s

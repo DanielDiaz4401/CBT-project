@@ -1,29 +1,16 @@
-# ==========================================
-# STAGE 1: BUILDER
-# ==========================================
-FROM node:20-alpine AS builder
+FROM node:20-alpine
 
 WORKDIR /app
 
-# 1. Instalar dependencias
+# Instalar dependencias
 COPY src/package.json src/package-lock.json* ./
-RUN npm ci
+RUN npm install
 
-# 2. Copiar código y generar el build estático de Astro
+# Copiar el resto del código
 COPY src/ .
-RUN npm run build
 
+EXPOSE 4321
+ENV HOST=0.0.0.0
 
-# ==========================================
-# STAGE 2: RUNNER (NGINX)
-# ==========================================
-FROM nginx:alpine
-
-# 1. Copiar los archivos estáticos generados en la etapa anterior a la carpeta pública de Nginx
-COPY --from=builder /app/dist /usr/share/nginx/html
-
-# 2. Exponer el puerto por defecto de Nginx
-EXPOSE 80
-
-# 3. Arrancar Nginx en primer plano
-CMD ["nginx", "-g", "daemon off;"]
+# Arrancamos en modo desarrollo nativo
+CMD ["npm", "run", "dev", "--", "--host"]
