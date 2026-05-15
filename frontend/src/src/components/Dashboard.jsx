@@ -46,23 +46,28 @@ useEffect(() => {
           const freshData = await res.json();
           
           setMigrations(prev => prev.map(m => m.id === update.id ? freshData : m));
-          if (selectedMigration && selectedMigration.id === update.id) {
-            setSelectedMigration(freshData);
-          }
+          
+          setSelectedMigration(prev => {
+            if (prev && prev.id === update.id) return freshData;
+            return prev;
+          });
+
         } catch (err) {
           console.error("Error al refrescar detalle:", err);
         }
       } else {
         setMigrations(prev => prev.map(m => m.id === update.id ? { ...m, status: update.status } : m));
-        if (selectedMigration && selectedMigration.id === update.id) {
-          setSelectedMigration(prev => ({ ...prev, status: update.status }));
-        }
+        
+        setSelectedMigration(prev => {
+          if (prev && prev.id === update.id) return { ...prev, status: update.status };
+          return prev;
+        });
       }
     };
 
     sse.onerror = () => console.error("SSE connection error.");
     return () => sse.close();
-  }, [selectedMigration]);
+  }, []);
 
   const handleConfirmSetup = async (formData) => {
     setIsCalculating(true);
