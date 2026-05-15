@@ -22,24 +22,20 @@ router = APIRouter(
     tags=["Simulations"]
 )
 
-def run_simulation_process_bg(sim_id: uuid.UUID, db: Session):
+def run_simulation_process_bg(sim_id: UUID):
     """
     Wrapper seguro para ejecutar simulaciones en segundo plano.
-    Garantiza que ningún hilo muera en silencio y que la BD siempre se actualice.
+    Instancia su propia sesión de BD para evitar que se cierre con la petición HTTP.
     """
+    db = SessionLocal() # 1. Creamos una conexión exclusiva para este hilo
     try:
-        # Llamada a tu handler principal
         run_simulation_process(db, str(sim_id))
     
     except Exception as e:
-        # 1. Hacemos rollback por si la transacción de BD se quedó bloqueada a medias
         db.rollback() 
-        
-        # 2. Imprimimos el error real en los logs de Docker para poder depurar
         print(f"[FATAL ERROR] Fallo crítico en hilo de simulación {sim_id}: {str(e)}")
         traceback.print_exc()
         
-        # 3. Intentamos hacer el Crash Recovery final (marcar como ERROR)
         try:
             crud.update_simulation_status(
                 db=db, 
@@ -47,8 +43,13 @@ def run_simulation_process_bg(sim_id: uuid.UUID, db: Session):
                 status=models.SimulationStatus.ERROR, 
                 error=f"Error fatal inesperado: {str(e)}"
             )
+            # NOTA PARA EL SSE: Aquí, dependiendo de cómo tengas implementado tu gestor de SSE 
+            # (ej. event_manager.broadcast(...)), deberías enviar el aviso de ERROR al frontend.
+            
         except Exception as inner_e:
-            print(f"[CATASTROPHIC] No se pudo ni siquiera guardar el estado de error: {inner_e}")
+            print(f"[CATASTROPHIC] No se pudo guardar el estado de error: {inner_e}")
+    finally:
+        db.close() # 2. Cerramos la conexión siempre, pase lo que pase
 
 # ==========================================
 # RECURSO: /simulations
