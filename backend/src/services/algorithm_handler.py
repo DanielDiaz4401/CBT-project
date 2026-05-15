@@ -28,6 +28,55 @@ def to_serializable(obj):
     if isinstance(obj, dict): return {k: to_serializable(v) for k, v in obj.items()}
     return obj
 
+def validate_and_prepare_data(buffer_nodos, buffer_aristas, buffer_paths):
+    """
+    1. Valida que los CSVs tengan las cabeceras correctas.
+    2. Usa Pandas para limpiar duplicados, NaN y percentiles.
+    3. Devuelve estructuras nativas de Python (diccionarios) para que los algoritmos no dependan de Pandas.
+    """
+    # ── VALIDACIÓN ──
+    try:
+        df_n = pd.read_csv(buffer_nodos, nrows=0)
+        df_a = pd.read_csv(buffer_aristas, nrows=0)
+        df_p = pd.read_csv(buffer_paths, nrows=0)
+        
+        if 'component' not in df_n.columns: raise ValueError(f"Falta 'component' en NODOS. Cabeceras: {list(df_n.columns)}")
+        if not all(c in df_a.columns for c in ['invoker', 'invoked', 'avg_time']): raise ValueError("Aristas inválidas.")
+        if not all(c in df_p.columns for c in ['path_number', 'node']): raise ValueError("Rutas inválidas.")
+    except pd.errors.EmptyDataError:
+        raise ValueError("Uno de los archivos CSV está completamente vacío.")
+    
+    # Devolvemos el cursor a 0 para leer los datos reales
+    buffer_nodos.seek(0)
+    buffer_aristas.seek(0)
+    buffer_paths.seek(0)
+
+    # ── LECTURA Y LIMPIEZA ──
+    nodes_df = pd.read_csv(buffer_nodos)
+    edges_df = pd.read_csv(buffer_aristas)
+    paths_df = pd.read_csv(buffer_paths)
+
+    # 1. Nodos -> dict {component_id: architecture}
+    nodes_dict = nodes_df.drop_duplicates(subset=['component']).set_index('component')['architecture'].to_dict()
+
+    # 2. Aristas -> dict {(invoker, invoked): avg_time}
+    # Aseguramos compatibilidad si la columna viene como 'base_latency' o 'avg_time'
+    lat_col = 'avg_time' if 'avg_time' in edges_df.columns else 'base_latency'
+    edges_df[lat_col] = edges_df[lat_col].abs()
+    edges_df = edges_df.dropna(subset=[lat_col])
+    cap_val = edges_df[lat_col].quantile(0.95)
+    edges_df[lat_col] = edges_df[lat_col].clip(upper=cap_val)
+    edges_dict = edges_df.set_index(['invoker', 'invoked'])[lat_col].to_dict()
+
+    # 3. Rutas -> dict {path_number: [nodo1, nodo2, ...]}
+    paths_dict = paths_df.groupby('path_number')['node'].apply(list).to_dict()
+
+    # 4. Mapa Método-Componente -> dict {node: component}
+    # (Asumiendo que paths_df tiene la columna 'component' pre-calculada, si no, se saca de nodes_df)
+    method_to_component = paths_df.drop_duplicates(subset=['node']).set_index('node')['component'].to_dict() if 'component' in paths_df.columns else {}
+
+    return nodes_dict, edges_dict, paths_dict, method_to_component
+
 def run_simulation_process(db: Session, sim_id: UUID):
     sim = crud.get_simulation(db, sim_id)
     if not sim: return
