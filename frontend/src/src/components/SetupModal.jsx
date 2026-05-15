@@ -6,10 +6,10 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
   const [migrationName, setMigrationName] = useState(templateData ? `${templateData.name} (Copy)` : '');
   const [files, setFiles] = useState({ edges: null, nodes: null, paths: null });
   const [algorithmType, setAlgorithmType] = useState(templateData?.algorithm_type || 'guangorithm');
-  const [params, setParams] = useState({ 
-    c_min: templateData?.c_min ?? 1, 
-    c_max: templateData?.c_max ?? 5, 
-    l_max: templateData?.l_max ?? 150, 
+  const [params, setParams] = useState({
+    c_min: templateData?.c_min ?? 1,
+    c_max: templateData?.c_max ?? 5,
+    l_max: templateData?.l_max ?? 150,
     l_extra: templateData?.l_extra ?? 30,
     threshold: templateData?.threshold ?? 10,
     algorithm_type: templateData?.algorithm_type ?? 'guangorithm'
@@ -134,26 +134,25 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors">✕</button>
         </div>
-
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
-          
-          {/* 1. PROJECT & DATA */}
-          <div className="flex-1 p-8 border-r border-slate-100 flex flex-col gap-6">
+
+          {/* 1. PROJECT & DATA - Ajustado a gap-8 */}
+          <div className="flex-1 p-8 border-r border-slate-100 flex flex-col gap-8">
             <h3 className="text-xs font-bold text-blue-600 uppercase tracking-widest">1. Project & Data</h3>
-            
-            <div className="space-y-2">
+
+            <div className="space-y-4"> {/* Mismo espacio que el resto */}
               <label className="block text-xs font-bold text-slate-500 uppercase">Project Name</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={migrationName}
                 onChange={(e) => setMigrationName(e.target.value)}
                 placeholder="e.g. Core Banking Migration"
                 className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm bg-slate-50/50"
               />
             </div>
-            
-            <div className="space-y-4 border-b border-slate-100 pb-6">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Input Data</h3>
+
+            <div className="space-y-4 border-b border-slate-100 pb-8">
+              <label className="block text-xs font-bold text-slate-500 uppercase">Input Files (.csv)</label>
               {templateData ? (
                 <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center gap-3">
                   <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center flex-shrink-0">
@@ -166,7 +165,6 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Input Files (.csv)</label>
                   {['nodes', 'edges', 'paths'].map((type) => (
                     <div key={type} onClick={() => fileInputs[type].current.click()} className={`group cursor-pointer flex items-center p-4 border-2 border-dashed rounded-xl transition-all ${files[type] ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50/30'}`}>
                       <div className="flex-1">
@@ -181,50 +179,63 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
               )}
             </div>
           </div>
-          
-          {/* 2. NODE CONSTRAINTS */}
-          <div className="flex-1 p-8 border-r border-slate-100 flex flex-col bg-slate-50/30">
-            <h3 className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-6">2. Node Constraints</h3>
-            
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3 mb-6">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 ml-1">NODE ID</span>
-                  <input type="text" placeholder="Ex: N-102" value={newNodeId} onChange={(e) => setNewNodeId(e.target.value)} className="w-full p-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" />
+
+          {/* 2. NODE CONSTRAINTS - Ajustado a gap-8 */}
+          <div className="flex-1 p-8 border-r border-slate-100 flex flex-col bg-slate-50/30 gap-8">
+            <h3 className="text-xs font-bold text-blue-600 uppercase tracking-widest">2. Node Constraints</h3>
+
+            <div className="space-y-4">
+              <label className="block text-xs font-bold text-slate-500 uppercase">Add new constraint</label>
+              <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 ml-1">NODE ID</span>
+                    <input type="text" placeholder="Ex: N-102" value={newNodeId} onChange={(e) => setNewNodeId(e.target.value)} className="w-full p-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 ml-1">STAGE</span>
+                    <input type="number" min="1" placeholder="1-10" value={newStage} onChange={(e) => setNewStage(e.target.value)} className="w-full p-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 ml-1">STAGE</span>
-                  <input type="number" min="1" placeholder="1-10" value={newStage} onChange={(e) => setNewStage(e.target.value)} className="w-full p-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" />
-                </div>
+                <button onClick={addConstraint} className="w-full py-3 bg-slate-800 text-white text-[10px] font-bold rounded-lg hover:bg-slate-900 transition-all uppercase tracking-widest">
+                  Add Constraint
+                </button>
               </div>
-              <button onClick={addConstraint} className="w-full py-3 bg-slate-800 text-white text-[10px] font-bold rounded-lg hover:bg-slate-900 transition-all uppercase tracking-widest">
-                Add Constraint
-              </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto pr-2 space-y-2 min-h-[200px]">
-              {constraints.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-100 rounded-xl">
-                  <p className="text-xs italic">No constraints added yet</p>
-                </div>
-              ) : (
-                constraints.map((c, i) => (
-                  <div key={i} className="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-xl shadow-sm animate-in fade-in slide-in-from-bottom-1">
-                    <div className="flex gap-3 items-center">
-                      <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md border border-blue-100">ID: {c.component_name}</span>
-                      <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md border border-slate-200">STAGE: {c.stage_number}</span>
-                    </div>
-                    <button onClick={() => removeConstraint(i)} className="text-slate-300 hover:text-red-500 transition-colors p-1">✕</button>
+            <div className="space-y-4 flex-1 flex flex-col min-h-0">
+              <label className="block text-xs font-bold text-slate-500 uppercase">Manage constraints</label>
+              <div className="flex-1 overflow-y-auto pr-2 space-y-2">
+                {constraints.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-100 rounded-xl min-h-[120px]">
+                    <p className="text-xs italic">No constraints added yet</p>
                   </div>
-                ))
-              )}
+                ) : (
+                  constraints.map((c, i) => (
+                    <div key={i} className="flex items-center justify-between bg-white border border-slate-200 p-3 rounded-xl">
+                      <div className="flex gap-3 items-center">
+                        <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md border border-blue-100">ID: {c.component_name}</span>
+                        <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md border border-slate-200">STAGE: {c.stage_number}</span>
+                      </div>
+                      <button onClick={() => removeConstraint(i)} className="text-slate-300 hover:text-red-500 transition-colors p-1">✕</button>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
 
-          {/* 3. ALGORITHM PARAMETERS */}
-          <div className="flex-1 p-8 flex flex-col justify-between">
-            <AlgorithmParamsForm params={params} setParams={setParams} />
-            <div className="pt-8 space-y-3">
+          {/* 3. ALGORITHM PARAMETERS - Ajustado a gap-8 */}
+          <div className="flex-1 p-8 flex flex-col gap-8">
+            {/* IMPORTANTE: El título debe estar FUERA del Form si el Form tiene sus propios gaps */}
+            <h3 className="text-xs font-bold text-blue-600 uppercase tracking-widest">3. Algorithm Engine</h3>
+
+            <div className="flex-1">
+              {/* Aquí dentro, el label de "ENGINE SELECTION" debe tener space-y-4 */}
+              <AlgorithmParamsForm params={params} setParams={setParams} />
+            </div>
+
+            <div className="pt-4 space-y-3">
               <button onClick={handleSubmit} disabled={isCalculating} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all disabled:opacity-50 active:scale-[0.98]">
                 {isCalculating ? 'Processing...' : 'Start Migration'}
               </button>

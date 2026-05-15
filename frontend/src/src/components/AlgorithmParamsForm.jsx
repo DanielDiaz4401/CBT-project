@@ -6,13 +6,11 @@ export default function AlgorithmParamsForm({ params, setParams }) {
   };
 
   return (
-    <div className="space-y-6">
-      <h3 className="text-xs font-bold text-blue-600 uppercase tracking-widest">3. Algorithm Engine</h3>
-      
+    <div className="space-y-8">
       {/* --- SELECTOR DE ALGORITMO CON TOOLTIP --- */}
-      <div className="space-y-2 relative z-20">
+      <div className="space-y-4 relative z-20">
         <div className="flex items-center gap-2">
-          <label className="block text-[10px] font-bold text-slate-400 uppercase">Engine Selection</label>
+          <label className="block text-xs font-bold text-slate-500 uppercase">Engine selection</label>
           
           {/* Tooltip CSS puro */}
           <div className="group relative flex items-center justify-center cursor-help">
@@ -47,24 +45,24 @@ export default function AlgorithmParamsForm({ params, setParams }) {
 
       {/* --- PARÁMETROS MATEMÁTICOS --- */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <label className="block text-[10px] font-bold text-slate-400 uppercase">C_MIN</label>
           <input type="number" value={params.c_min} onChange={(e) => handleChange('c_min', e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50" />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <label className="block text-[10px] font-bold text-slate-400 uppercase">C_MAX</label>
           <input type="number" value={params.c_max} onChange={(e) => handleChange('c_max', e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50" />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <label className="block text-[10px] font-bold text-slate-400 uppercase">L_MAX (ms)</label>
           <input type="number" value={params.l_max} onChange={(e) => handleChange('l_max', e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50" />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           <label className="block text-[10px] font-bold text-slate-400 uppercase">L_EXTRA (ms)</label>
           <input type="number" value={params.l_extra} onChange={(e) => handleChange('l_extra', e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50" />
         </div>
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         <label className="block text-[10px] font-bold text-slate-400 uppercase">Threshold (%)</label>
         <div className="relative flex items-center">
           <input type="number" value={params.threshold} onChange={(e) => handleChange('threshold', e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50/50 pr-10" />
