@@ -203,7 +203,7 @@ def validate_and_prepare_data(buffer_nodos, buffer_aristas, buffer_paths, l_extr
         all_components = nodes_df['component'].unique().tolist()
         component_to_cluster = {c: i for i, c in enumerate(all_components)}
 
-    return edges_dict, nodes_dict, paths_dict, method_to_component, component_to_paths, component_adjacency, pending_components, component_to_cluster
+    return nodes_dict, edges_dict, paths_dict, method_to_component, component_to_paths, component_adjacency, pending_components, component_to_cluster
 
 def run_simulation_process(db: Session, sim_id: UUID):
     sim = crud.get_simulation(db, sim_id)
