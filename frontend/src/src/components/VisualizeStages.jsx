@@ -13,12 +13,12 @@ export default function VisualizeStages({ migration }) {
   const [loading, setLoading] = useState(true);
   
   // Configuration parameters
-  const params = migration?.params || { 
-    l_max: 150, 
-    c_min: 1, 
-    c_max: 5, 
-    l_extra: 0, 
-    threshold: 0 // Changed from umbral to threshold
+  const params = { 
+    l_max: migration?.l_max ?? 150, 
+    c_min: migration?.c_min ?? 1, 
+    c_max: migration?.c_max ?? 5, 
+    l_extra: migration?.l_extra ?? 0, 
+    threshold: migration?.threshold ?? migration?.umbral ?? 0 
   };
 
   // Get fixed nodes (blocked_components) of the migration
