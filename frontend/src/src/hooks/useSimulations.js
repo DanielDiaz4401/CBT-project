@@ -29,11 +29,26 @@ export function useSimulations() {
   useEffect(() => {
     const sse = new EventSource(`${API_BASE}/events/stream`);
 
-    sse.onmessage = (event) => {
+    sse.onmessage = async (event) => {
       const update = JSON.parse(event.data);
-      setMigrations(prev => prev.map(m =>
-        m.id === update.id ? { ...m, status: update.status } : m
-      ));
+
+      // 1. Si el nuevo estado es 'error' o 'failed', pedimos los datos frescos al backend
+      if (update.status === 'error' || update.status === 'failed') {
+        try {
+          const res = await fetch(`${API_BASE}/${update.id}`);
+          const freshData = await res.json();
+
+          // Actualizamos la lista con el objeto completo (incluyendo el error_message real)
+          setMigrations(prev => prev.map(m => m.id === update.id ? freshData : m));
+        } catch (err) {
+          console.error("Error al refrescar detalle tras fallo:", err);
+        }
+      } else {
+        // 2. Si es 'running' o 'completed', simplemente actualizamos el estado como antes
+        setMigrations(prev => prev.map(m =>
+          m.id === update.id ? { ...m, status: update.status } : m
+        ));
+      }
     };
 
     sse.onerror = () => {
