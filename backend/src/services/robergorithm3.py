@@ -252,17 +252,20 @@ def _build_graphs(df_aristas, crit_paths_parsed):
 
     return G, G_crit
 
-def evaluar_migracion(nodo, G_crit, df_crit_paths, estado, l_extra, umbral_pct=10):
+def evaluar_migracion(nodo, G_crit, crit_paths_parsed, estado, l_extra, umbral_pct=10):
 
-    def latencia_arista(source, target, estado_sim):
+    def latencia_arista(source, target, estado_sim): # L_extra no esta de base
         base = G_crit[source][target].get('avg_time', 0)
-        if estado_sim.get(source) != estado_sim.get(target):
+        if estado_sim.get(source, 'on-prem') != estado_sim.get(target, 'on-prem'):
             base += l_extra
         return base
 
-    def ramas_raiz_hoja(ruta):
+    def latencia_critica(ruta, estado_sim):
+        """Calcula la latencia del camino crítico (peor camino raíz→hoja) por topological sort."""
         G_ruta = nx.DiGraph()
         G_ruta.add_edges_from(ruta)
+
+        # Romper ciclos, arista con menor avg_time
         while not nx.is_directed_acyclic_graph(G_ruta):
             ciclo = nx.find_cycle(G_ruta, orientation='original')
             arista = min(
@@ -270,28 +273,32 @@ def evaluar_migracion(nodo, G_crit, df_crit_paths, estado, l_extra, umbral_pct=1
                 key=lambda e: G_crit[e[0]][e[1]].get('avg_time', 0) if G_crit.has_edge(e[0], e[1]) else 0
             )
             G_ruta.remove_edge(arista[0], arista[1])
-        raices = [n for n in G_ruta.nodes() if G_ruta.in_degree(n) == 0]
-        hojas = [n for n in G_ruta.nodes() if G_ruta.out_degree(n) == 0]
-        ramas = []
-        for raiz in raices:
-            for hoja in hojas:
-                for camino in nx.all_simple_paths(G_ruta, raiz, hoja):
-                    ramas.append(list(zip(camino, camino[1:])))
-        return ramas
 
-    crit_paths_parsed = [ast.literal_eval(p) for p in df_crit_paths['full_path']]
+        # Propagar latencia acumulada máxima por orden topológico
+        lat_acum = {n: 0 for n in G_ruta.nodes()}
+        for n in nx.topological_sort(G_ruta):
+            for sucesor in G_ruta.successors(n):
+                nueva = lat_acum[n] + latencia_arista(n, sucesor, estado_sim)
+                if nueva > lat_acum[sucesor]:
+                    lat_acum[sucesor] = nueva
+
+        # El camino crítico es la latencia máxima que llega a cualquier hoja
+        hojas = [n for n in G_ruta.nodes() if G_ruta.out_degree(n) == 0]
+        return max((lat_acum[h] for h in hojas), default=0)
+
     estado_sim = {**estado, nodo: 'cloud'}
-    rutas = [ruta for ruta in crit_paths_parsed if nodo in {n for edge in ruta for n in edge}]
+    rutas = [r for r in crit_paths_parsed if nodo in {n for edge in r for n in edge}]
 
     if not rutas:
-        return False
+        return True  # fuera de paths críticos: seguro migrar
 
     for ruta in rutas:
-        for rama in ramas_raiz_hoja(ruta):
-            antes = sum(latencia_arista(s, t, estado) for s, t in rama)
-            despues = sum(latencia_arista(s, t, estado_sim) for s, t in rama)
-            if despues > antes * (1 + umbral_pct / 100):
-                return False
+        antes = latencia_critica(ruta, estado)
+        despues = latencia_critica(ruta, estado_sim)
+        if antes > 0 and despues > antes * (1 + umbral_pct / 100):
+            return False
+        if antes == 0 and despues > 0:
+            return False
 
     return True
 
@@ -522,7 +529,7 @@ def generate_migration_plan(ruta_nodos, ruta_aristas, ruta_paths, c_min, c_max, 
         "rutas_criticas": rutas_criticas_output,
     }
 
-
+"""
 if __name__ == "__main__":
     etapas_output = generate_migration_plan(
         ruta_nodos="nodes.csv",
@@ -538,3 +545,4 @@ if __name__ == "__main__":
     with open(output_path, "w") as f:
         json.dump(etapas_output, f, indent=4)
     print(f"Exportado a: {output_path}")
+    """
