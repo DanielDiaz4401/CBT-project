@@ -1,116 +1,106 @@
-import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
+import React, { useState, useEffect, useMemo, memo } from 'react';
+import ReactECharts from 'echarts-for-react'; // <-- Importamos ECharts
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE_URL;
 
-// --- 1. SUBCOMPONENTE AISLADO DEL CANVAS ---
-// Al usar memo, React bloquea los re-renderizados a menos que cambien los props exactos.
-// El paneo y el zoom ocurren aquí dentro, aislando el rendimiento.
+// --- 1. SUBCOMPONENTE AISLADO DEL CANVAS (AHORA CON ECHARTS) ---
+// --- 1. SUBCOMPONENTE AISLADO DEL CANVAS (AHORA CON ECHARTS) ---
 const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, loading }) => {
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const containerRef = useRef(null);
-
-  const onMouseDown = (e) => { setIsDragging(true); setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y }); };
-  const onMouseMove = (e) => { if (isDragging) setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y }); };
-  const onMouseUp = () => setIsDragging(false);
-
   if (!skeleton || !currentStepEdges) return null;
 
   const nodeIds = Object.keys(skeleton.nodes_mapping);
-  const totalNodes = nodeIds.length;
-  
-  const getPos = (i) => {
-    const angle = (i / totalNodes) * 2 * Math.PI;
-    const radius = Math.max(250, totalNodes * 20);
-    return { x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
+
+  const nodes = nodeIds.map(id => {
+    const isCloud = cloudNodes.has(id);
+    return {
+      id: id, // ECharts usa este ID para saber que el nodo no se ha movido
+      name: id,
+      symbolSize: 42,
+      itemStyle: {
+        color: isCloud ? '#3b82f6' : '#94a3b8',
+        borderColor: '#ffffff',
+        borderWidth: 3,
+        shadowBlur: 8,
+        shadowColor: 'rgba(0,0,0,0.12)'
+      },
+      label: {
+        show: true,
+        position: 'bottom',
+        distance: 8,
+        fontSize: 11,
+        fontWeight: 'bold',
+        color: '#334155'
+      }
+    };
+  });
+
+  const links = Object.entries(skeleton.edge_latencies).map(([edgeKey]) => {
+    const [sId, tId] = edgeKey.split('|');
+    
+    const isCritical = currentStepEdges.worst_path_edges.some(e => (e[0] || e.invoker) === sId && (e[1] || e.invoked) === tId);
+    const isExtra = currentStepEdges.extra_latency_edges.some(e => (e[0] || e.invoker) === sId && (e[1] || e.invoked) === tId);
+
+    return {
+      id: edgeKey, // <--- CLAVE 1: Le damos un ID fijo a la arista para que no la destruya
+      source: sId,
+      target: tId,
+      lineStyle: {
+        color: isCritical || isExtra ? '#ef4444' : '#cbd5e1',
+        width: isCritical ? 5 : 2,
+        type: isExtra && !isCritical ? 'dashed' : 'solid',
+        curveness: 0.15
+      },
+      symbol: ['none', 'arrow'],
+      symbolSize: [0, isCritical ? 12 : 8]
+    };
+  });
+
+  const option = {
+    animationDurationUpdate: 800, // Duración del fundido de color
+    animationEasingUpdate: 'quinticInOut',
+    series: [{
+      id: 'migration-topology', // <--- CLAVE 2: Le decimos a ECharts que TODO el grafo es siempre el mismo
+      type: 'graph',
+      layout: 'force',
+      top: 0, bottom: 0, left: 0, right: 0,
+      data: nodes,
+      links: links,
+      roam: true, 
+      draggable: true, 
+      force: {
+        repulsion: 3000, 
+        edgeLength: [150, 350], 
+        gravity: 0.03, 
+        layoutAnimation: true // <--- CLAVE 3: Lo volvemos a poner en true. Como el grafo tiene ID, ECharts usará las posiciones *actuales* y los nodos no se moverán ni un milímetro.
+      },
+      emphasis: {
+        focus: 'adjacency', 
+        scale: true, 
+        lineStyle: { width: 5 } 
+      },
+      blur: {
+        itemStyle: { opacity: 1 },
+        lineStyle: { opacity: 1 }
+      }
+    }]
   };
 
   return (
-    <div 
-      className={`flex-1 relative w-full h-full ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`} 
-      ref={containerRef}
-      onMouseDown={onMouseDown} 
-      onMouseMove={onMouseMove} 
-      onMouseUp={onMouseUp} 
-      onMouseLeave={onMouseUp}
-    >
-      {/* Controles de Zoom encapsulados */}
-      <div className="absolute top-6 right-6 bg-white/90 backdrop-blur-md p-1.5 rounded-2xl shadow-lg border border-slate-200/60 flex flex-col gap-1 z-20 pointer-events-auto">
-        <button onClick={() => setZoom(z => z + 0.1)} className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-xl text-slate-600 font-bold text-xl transition-colors">+</button>
-        <div className="w-6 h-[1px] bg-slate-200 mx-auto my-1"></div>
-        <button onClick={() => setZoom(z => Math.max(0.1, z - 0.1))} className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-xl text-slate-600 font-bold text-xl transition-colors">-</button>
-        <div className="w-6 h-[1px] bg-slate-200 mx-auto my-1"></div>
-        <button onClick={() => {setZoom(1); setPan({x:0, y:0})}} className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-xl text-slate-400 font-black text-[9px] uppercase tracking-tighter transition-colors">RST</button>
-      </div>
-
-      <svg className="w-full h-full absolute inset-0 pointer-events-none">
-        <defs>
-          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#cbd5e1" strokeWidth="0.5" strokeOpacity="0.4"/>
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#grid)" />
-        
-        <g style={{ 
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          transformOrigin: '0 0',
-          transition: isDragging ? 'none' : 'transform 0.1s ease-out'
-        }}>
-          <g transform={`translate(${containerRef.current?.clientWidth / 2 || 400}, ${containerRef.current?.clientHeight / 2 || 300})`}>
-            {/* ARISTAS */}
-            {Object.entries(skeleton.edge_latencies).map(([edgeKey]) => {
-              const [sId, tId] = edgeKey.split('|');
-              const sIdx = nodeIds.indexOf(sId);
-              const tIdx = nodeIds.indexOf(tId);
-              if (sIdx === -1 || tIdx === -1) return null;
-
-              const p1 = getPos(sIdx);
-              const p2 = getPos(tIdx);
-
-              // Soporte seguro para arrays o diccionarios según la API
-              const isCritical = currentStepEdges.worst_path_edges.some(e => (e[0] || e.invoker) === sId && (e[1] || e.invoked) === tId);
-              const isExtra = currentStepEdges.extra_latency_edges.some(e => (e[0] || e.invoker) === sId && (e[1] || e.invoked) === tId);
-
-              return (
-                <line 
-                  key={edgeKey} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
-                  stroke={isCritical || isExtra ? "#ef4444" : "#cbd5e1"}
-                  strokeWidth={isCritical ? "5" : "2"}
-                  strokeDasharray={isExtra && !isCritical ? "6,6" : ""}
-                  className="transition-all duration-500"
-                />
-              );
-            })}
-
-            {/* NODOS */}
-            {nodeIds.map((id, i) => {
-              const pos = getPos(i);
-              const isCloud = cloudNodes.has(id);
-
-              return (
-                <g key={id} transform={`translate(${pos.x}, ${pos.y})`}>
-                  <circle 
-                    r="28" 
-                    fill={isCloud ? "#3b82f6" : "#94a3b8"}
-                    stroke="white" strokeWidth="4"
-                    className="transition-colors duration-700 shadow-2xl pointer-events-auto"
-                  />
-                  <text textAnchor="middle" dy=".3em" className="text-[10px] font-black fill-white">{id}</text>
-                  <text y="45" textAnchor="middle" className="text-[9px] font-bold fill-slate-500 uppercase tracking-widest">
-                    {isCloud ? 'CLOUD' : 'ON-PREM'}
-                  </text>
-                </g>
-              );
-            })}
-          </g>
-        </g>
-      </svg>
-
-      {/* Loading Overlay */}
+    <div className="flex-1 relative w-full h-full bg-slate-50 overflow-hidden cursor-move">
+      <div 
+        className="absolute inset-0 pointer-events-none" 
+        style={{ backgroundImage: 'radial-gradient(#cbd5e1 1.5px, transparent 1.5px)', backgroundSize: '32px 32px', opacity: 0.4 }}
+      ></div>
+      
+      <ReactECharts 
+        option={option} 
+        style={{ height: '100%', width: '100%', position: 'absolute', zIndex: 10 }} 
+        notMerge={false} 
+        lazyUpdate={true}
+      />
+      
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-sm z-30">
+        <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-sm z-30 pointer-events-none">
           <div className="flex flex-col items-center gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-blue-600"></div>
             <p className="text-xs font-black text-blue-600 uppercase tracking-widest">Processing Data...</p>
@@ -122,7 +112,7 @@ const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, l
 });
 
 
-// --- 2. COMPONENTE PRINCIPAL (Orquestador de Datos) ---
+// --- 2. COMPONENTE PRINCIPAL (Orquestador de Datos Intacto) ---
 export default function VisualizeGraph({ migration }) {
   const [milestones, setMilestones] = useState([]);
   const [allStages, setAllStages] = useState([]);
@@ -175,7 +165,6 @@ export default function VisualizeGraph({ migration }) {
       .then(data => setCurrentStepEdges(data));
   };
 
-  // Acumulación local optimizada por backend (Solo el sumario de nodos)
   const cloudNodes = useMemo(() => {
     if (!milestones.length || pathNumber === '' || !allStages.length || !skeleton) return new Set();
     
@@ -206,7 +195,7 @@ export default function VisualizeGraph({ migration }) {
     <div className="flex flex-col h-full bg-slate-50 relative font-sans overflow-hidden select-none">
       
       {/* FLOATING HEADER: PATH INPUT & LEYENDA */}
-      <div className="absolute top-6 left-6 flex flex-col gap-4 z-10 pointer-events-none">
+      <div className="absolute top-6 left-6 flex flex-col gap-4 z-20 pointer-events-none">
         <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-lg border border-slate-200/60 flex flex-col pointer-events-auto">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Path Number</label>
           <div className="flex items-center gap-3">
@@ -244,7 +233,7 @@ export default function VisualizeGraph({ migration }) {
         </div>
       </div>
 
-      {/* CANVAS RENDERING AREA AISLADA */}
+      {/* CANVAS RENDERING AREA AISLADA CON ECHARTS */}
       <GraphInteractiveCanvas 
         skeleton={skeleton} 
         cloudNodes={cloudNodes} 
@@ -258,7 +247,7 @@ export default function VisualizeGraph({ migration }) {
           <button 
             onClick={() => handleNavigate(-1)} 
             disabled={stageIdx === 0} 
-            className="group flex items-center gap-3 px-6 py-3 bg-slate-50 border border-slate-200 rounded-full hover:bg-slate-100 disabled:opacity-30 transition-all"
+            className="group flex items-center gap-3 px-6 py-3 bg-slate-50 border border-slate-200 rounded-full hover:bg-slate-100 disabled:opacity-30 transition-all cursor-pointer"
           >
             <div className="w-8 h-8 flex items-center justify-center bg-white rounded-full shadow-sm text-slate-500 group-hover:text-slate-900 transition-colors">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7"/></svg>
@@ -276,7 +265,7 @@ export default function VisualizeGraph({ migration }) {
           <button 
             onClick={() => handleNavigate(1)} 
             disabled={!milestones.find(p => p.path_number === Number(pathNumber)) || stageIdx >= (milestones.find(p => p.path_number === Number(pathNumber))?.affected_stages.length - 1)} 
-            className="group flex items-center gap-3 px-6 py-3 bg-blue-600 rounded-full hover:bg-blue-700 disabled:opacity-30 shadow-lg shadow-blue-200 transition-all"
+            className="group flex items-center gap-3 px-6 py-3 bg-blue-600 rounded-full hover:bg-blue-700 disabled:opacity-30 shadow-lg shadow-blue-200 transition-all cursor-pointer"
           >
             <span className="font-black text-white uppercase tracking-widest text-xs hidden md:block">Next Change</span>
             <div className="w-8 h-8 flex items-center justify-center bg-white/20 rounded-full text-white group-hover:bg-white group-hover:text-blue-600 transition-colors">
