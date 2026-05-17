@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function AlgorithmParamsForm({ params, setParams }) {
+export default function AlgorithmParamsForm({ params, setParams, setShowAlgoInfo }) {
   const handleChange = (key, value) => {
     setParams(prev => ({ ...prev, [key]: value }));
   };
@@ -14,15 +14,7 @@ export default function AlgorithmParamsForm({ params, setParams }) {
           
           {/* Tooltip CSS puro */}
           <div className="group relative flex items-center justify-center cursor-help">
-            <div className="w-4 h-4 bg-slate-200 text-slate-500 rounded-full flex items-center justify-center text-[10px] font-black hover:bg-blue-100 hover:text-blue-600 transition-colors">?</div>
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-72 p-4 bg-slate-900 text-white text-[11px] rounded-xl shadow-2xl border border-slate-700 pointer-events-none z-50 animate-in fade-in slide-in-from-bottom-1">
-              <p className="font-bold text-blue-400 mb-2 uppercase tracking-widest text-[9px] border-b border-slate-700 pb-1">Engine Specifications</p>
-              <ul className="space-y-2">
-                <li><strong className="text-emerald-400">Guangorithm:</strong> Heurístico rápido. Complejidad $O(N)$. Ideal para grafos masivos y simulaciones ágiles.</li>
-                <li><strong className="text-amber-400">Robergorithm V2:</strong> Búsqueda exhaustiva. Complejidad $O(N^2)$. Máxima precisión, recomendado para infraestructuras críticas.</li>
-                <li><strong className="text-purple-400">Robergorithm V3:</strong> Exhaustivo optimizado. Complejidad $O(N \log N)$. Balance perfecto entre rendimiento en memoria y precisión.</li>
-              </ul>
-            </div>
+            <div className="w-4 h-4 bg-slate-200 text-slate-500 rounded-full flex items-center justify-center text-[10px] font-black hover:bg-blue-100 hover:text-blue-600 transition-colors" onClick={() => setShowAlgoInfo(true)}>?</div>
           </div>
         </div>
         

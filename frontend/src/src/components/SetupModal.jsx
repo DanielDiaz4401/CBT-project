@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import AlgorithmParamsForm from './AlgorithmParamsForm';
+import AlgorithmInformation from './AlgorithmInformation';
 
 export default function SetupModal({ onClose, onConfirm, isCalculating, templateData }) {
   const [migrationName, setMigrationName] = useState(templateData ? `${templateData.name} (Copy)` : '');
@@ -20,6 +21,7 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
   const [newStage, setNewStage] = useState('');
 
   const fileInputs = { edges: useRef(null), nodes: useRef(null), paths: useRef(null) };
+  const [showAlgoInfo, setShowAlgoInfo] = useState(false);
 
   // --- CAPA DE SEGURIDAD Y SANEAMIENTO ---
   // Permite solo alfanuméricos, guiones, barras bajas y espacios.
@@ -134,7 +136,8 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors">✕</button>
         </div>
-        <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+        <div className="flex flex-col md:flex-row flex0 overflow-hidden relative">
+        {showAlgoInfo && <AlgorithmInformation setShowAlgoInfo={setShowAlgoInfo}/>}
 
           {/* 1. PROJECT & DATA - Ajustado a gap-8 */}
           <div className="flex-1 p-8 border-r border-slate-100 flex flex-col gap-8">
@@ -232,7 +235,7 @@ export default function SetupModal({ onClose, onConfirm, isCalculating, template
 
             <div className="flex-1">
               {/* Aquí dentro, el label de "ENGINE SELECTION" debe tener space-y-4 */}
-              <AlgorithmParamsForm params={params} setParams={setParams} />
+              <AlgorithmParamsForm params={params} setParams={setParams} setShowAlgoInfo={setShowAlgoInfo} />
             </div>
 
             <div className="pt-4 space-y-3">
