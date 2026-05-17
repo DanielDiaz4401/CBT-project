@@ -17,5 +17,8 @@ pydantic-settings     # Gestión de configuraciones avanzada (opcional pero úti
 pandas                # Muy común si tu algoritmo procesa CSVs o tablas
 numpy                 # Para cálculos numéricos pesados
 
+# --- Tests ---
+pytest
+
 networkx
 tqdm
