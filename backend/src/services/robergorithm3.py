@@ -1,6 +1,5 @@
-import pandas as pd
-import ast
 import networkx as nx
+<<<<<<< HEAD
 import json
 #from clean import procesar
 
@@ -258,6 +257,13 @@ def evaluar_migracion(nodo, G_crit, crit_paths_parsed, estado, l_extra, umbral_p
         base = G_crit[source][target].get('avg_time', 0)
         if estado_sim.get(source, 'on-prem') != estado_sim.get(target, 'on-prem'):
             base += l_extra
+=======
+
+def evaluar_migracion(nodo, G_crit, crit_paths_parsed, estado, l_extra, umbral_pct=10):
+    def latencia_arista(source, target, estado_sim):
+        base = G_crit[source][target].get('avg_time', 0) if G_crit.has_edge(source, target) else 0
+        if estado_sim.get(source) != estado_sim.get(target): base += l_extra
+>>>>>>> 4966ae3 (refactor(algorithms): standardize interfaces and remove pandas dependency from math logic)
         return base
 
     def latencia_critica(ruta, estado_sim):
@@ -265,6 +271,7 @@ def evaluar_migracion(nodo, G_crit, crit_paths_parsed, estado, l_extra, umbral_p
         G_ruta = nx.DiGraph()
         G_ruta.add_edges_from(ruta)
 
+<<<<<<< HEAD
         # Romper ciclos, arista con menor avg_time
         while not nx.is_directed_acyclic_graph(G_ruta):
             ciclo = nx.find_cycle(G_ruta, orientation='original')
@@ -300,119 +307,83 @@ def evaluar_migracion(nodo, G_crit, crit_paths_parsed, estado, l_extra, umbral_p
         if antes == 0 and despues > 0:
             return False
 
+=======
+    estado_sim = {**estado, nodo: 'cloud'}
+    rutas = [ruta for ruta in crit_paths_parsed if nodo in {n for edge in ruta for n in edge}]
+    if not rutas: return False
+
+    for ruta in rutas:
+        for rama in ramas_raiz_hoja(ruta):
+            antes = sum(latencia_arista(s, t, estado) for s, t in rama)
+            despues = sum(latencia_arista(s, t, estado_sim) for s, t in rama)
+            if despues > antes * (1 + umbral_pct / 100): return False
+>>>>>>> 4966ae3 (refactor(algorithms): standardize interfaces and remove pandas dependency from math logic)
     return True
 
-
-def _seleccionar_validos(G, G_crit, df_crit_paths, estado, c_min, c_max, l_extra, umbral_pct=10, bloqueos_dict=None, etapa_actual=0):
+def _seleccionar_validos(G, G_crit, crit_paths_parsed, estado, c_min, c_max, l_extra, umbral_pct=10, bloqueos_dict=None, etapa_actual=0):
     bloqueados = {c for c, e in (bloqueos_dict or {}).items() if etapa_actual < e}
     grados = dict(G_crit.degree())
     max_conn = max(grados.values()) if grados else 0
 
-    # Prioridad 1: nodos en G_crit con al menos un vecino cloud
-    candidatos = [
-        nodo for nodo in G_crit.nodes()
-        if estado.get(nodo) == 'on-prem'
-        and nodo not in bloqueados
-        and any(estado.get(v) == 'cloud' for v in G_crit.neighbors(nodo))
-    ]
-
-     # Prioridad 2: nodos hoja en G_crit (sin sucesores) atrapados en on-prem
-    if not candidatos:
-        candidatos = [
-            nodo for nodo in G_crit.nodes()
-            if estado.get(nodo) == 'on-prem'
-            and nodo not in bloqueados
-            and G_crit.out_degree(nodo) == 0
-        ]
-
-    # Prioridad 3: si no hay hojas, cualquier on-prem en G_crit (fallback)
-    if not candidatos:
-        candidatos = [
-            nodo for nodo in G_crit.nodes()
-            if estado.get(nodo) == 'on-prem'
-            and nodo not in bloqueados
-        ]
+    candidatos = [n for n in G_crit.nodes() if estado.get(n) == 'on-prem' and n not in bloqueados and any(estado.get(v) == 'cloud' for v in G_crit.neighbors(n))]
+    if not candidatos: candidatos = [n for n in G_crit.nodes() if estado.get(n) == 'on-prem' and n not in bloqueados and G_crit.out_degree(n) == 0]
+    if not candidatos: candidatos = [n for n in G_crit.nodes() if estado.get(n) == 'on-prem' and n not in bloqueados]
 
     validos = []
-
     if candidatos:
         resultados_saltos = []
         for nodo in candidatos:
-            saltos_nuevos = 0
-            saltos_eliminados = 0
-            extra_sandwich = 0
-
+            saltos_nuevos, saltos_eliminados, extra_sandwich = 0, 0, 0
             for v in G_crit.neighbors(nodo):
                 if estado.get(v) == 'on-prem':
                     saltos_nuevos += 1
-                    sandwich_weight = sum(
-                        1 for vv in G_crit.neighbors(v)
-                        if vv != nodo and estado.get(vv) == 'cloud'
-                    )
-                    extra_sandwich += sandwich_weight
-                else:
-                    saltos_eliminados += 1
+                    extra_sandwich += sum(1 for vv in G_crit.neighbors(v) if vv != nodo and estado.get(vv) == 'cloud')
+                else: saltos_eliminados += 1
+            resultados_saltos.append((nodo, saltos_nuevos - saltos_eliminados + extra_sandwich))
 
-            saltos = saltos_nuevos - saltos_eliminados + extra_sandwich
-            resultados_saltos.append((nodo, saltos))
-
-        resultados_saltos_ordenados = sorted(
-            resultados_saltos,
-            key=lambda x: (x[1], -(grados.get(x[0], 0) / max_conn if max_conn else 0))
-        )
+        resultados_saltos_ordenados = sorted(resultados_saltos, key=lambda x: (x[1], -(grados.get(x[0], 0) / max_conn if max_conn else 0)))
 
         for nodo, _ in resultados_saltos_ordenados:
-            pasa = evaluar_migracion(nodo, G_crit, df_crit_paths, estado, l_extra, umbral_pct)
-            if pasa:
-                validos.append(nodo)
-            if len(validos) >= c_max:
-                break
+            pasa = evaluar_migracion(nodo, G_crit, crit_paths_parsed, estado, l_extra, umbral_pct)
+            if pasa: validos.append(nodo)
+            if len(validos) >= c_max: break
 
-        # Si nadie pasó, coger los mejores aunque empeoren
         if not validos:
             for nodo, _ in resultados_saltos_ordenados:
                 validos.append(nodo)
-                if len(validos) >= c_max:
-                    break
+                if len(validos) >= c_max: break
 
-    # Prioridad 4: relleno con nodos fuera de G_crit
     if len(validos) < c_max:
         ya_en_validos = set(validos)
         nodos_gcrit = set(G_crit.nodes())
         for n in G.nodes():
             if n not in nodos_gcrit and n not in ya_en_validos and n not in bloqueados and estado.get(n) == 'on-prem':
                 validos.append(n)
-            if len(validos) >= c_max:
-                break
+            if len(validos) >= c_max: break
 
     return validos
-
 
 def _calculate_path_latency_components(edges_data, estado, l_extra):
     acc_latency = {}
     for comp_invoker, comp_invoked, base_latency in edges_data:
         crossing = l_extra if estado.get(comp_invoker) != estado.get(comp_invoked) else 0
-
-        if comp_invoker not in acc_latency:
-            acc_latency[comp_invoker] = 0
-
+        acc_latency[comp_invoker] = acc_latency.get(comp_invoker, 0)
         new_latency = acc_latency[comp_invoker] + base_latency + crossing
-
-        if comp_invoked not in acc_latency:
-            acc_latency[comp_invoked] = new_latency
-        else:
-            acc_latency[comp_invoked] = max(acc_latency[comp_invoked], new_latency)
-
+        acc_latency[comp_invoked] = max(acc_latency.get(comp_invoked, 0), new_latency)
     return max(acc_latency.values()) if acc_latency else 0
 
+def generate_migration_plan(nodes_dict, edges_dict, paths_dict, method_to_component, c_min, c_max, l_max, l_extra=30, umbral=10, lista_bloqueos=None, **kwargs):
+    estado = {comp: ('cloud' if info['migrated'] else 'on-prem') for comp, info in nodes_dict.items()}
 
-def generate_migration_plan(ruta_nodos, ruta_aristas, ruta_paths, c_min, c_max, l_max, l_extra=30, umbral=10, lista_bloqueos=None):
-    
-    resultados = procesar(ruta_aristas, ruta_nodos, ruta_paths, l_extra=l_extra)
-    df_nodos      = resultados['components']
-    df_aristas    = resultados['edges_comp']
-    df_crit_paths = resultados['paths_componentes']
+    # Reconstrucción de Grafos
+    G = nx.DiGraph()
+    for (u_node, v_node), avg_time in edges_dict.items():
+        u_comp, v_comp = method_to_component.get(u_node), method_to_component.get(v_node)
+        if u_comp and v_comp and u_comp != v_comp:
+            if G.has_edge(u_comp, v_comp): G[u_comp][v_comp]['avg_time'] = max(G[u_comp][v_comp]['avg_time'], avg_time)
+            else: G.add_edge(u_comp, v_comp, avg_time=avg_time)
 
+<<<<<<< HEAD
     id_col = _columna_id_componente(df_nodos)
     estado = pd.Series(df_nodos['architecture'].values, index=df_nodos[id_col]).to_dict()
 
@@ -425,39 +396,38 @@ def generate_migration_plan(ruta_nodos, ruta_aristas, ruta_paths, c_min, c_max, 
         (row['invoker'], row['invoked']): row['avg_time']
         for _, row in df_aristas.iterrows()
     }
+=======
+    G_crit = nx.DiGraph()
+    crit_paths_parsed = []
+    for path_info in paths_dict.values():
+        comp_path = []
+        for u_node, v_node in path_info['edges']:
+            u_comp, v_comp = method_to_component.get(u_node), method_to_component.get(v_node)
+            if u_comp and v_comp and u_comp != v_comp:
+                avg_time = G[u_comp][v_comp]['avg_time'] if G.has_edge(u_comp, v_comp) else edges_dict.get((u_node, v_node), 0)
+                G_crit.add_edge(u_comp, v_comp, avg_time=avg_time)
+                comp_path.append((u_comp, v_comp))
+        if comp_path: crit_paths_parsed.append(comp_path)
+>>>>>>> 4966ae3 (refactor(algorithms): standardize interfaces and remove pandas dependency from math logic)
 
     paths_info = {}
-    for idx, edges in enumerate(crit_paths_parsed):
-        if not edges:
-            continue
-        edges_data = [
-            (inv, invd, edge_latency_lookup.get((inv, invd), 0))
-            for inv, invd in edges
-        ]
-        nodos_list = []
-        for inv, invd in edges:
-            if not nodos_list:
-                nodos_list.append(inv)
-            elif nodos_list[-1] != inv:
-                nodos_list.append(inv)
-            if nodos_list[-1] != invd:
-                nodos_list.append(invd)
+    for path_id, path_info_dict in paths_dict.items():
+        edges_data_comp, nodos_list = [], []
+        for u_node, v_node in path_info_dict['edges']:
+            u_comp, v_comp = method_to_component.get(u_node), method_to_component.get(v_node)
+            if u_comp and v_comp and u_comp != v_comp:
+                base_lat = G[u_comp][v_comp]['avg_time'] if G.has_edge(u_comp, v_comp) else edges_dict.get((u_node, v_node), 0)
+                edges_data_comp.append((u_comp, v_comp, base_lat))
+                if not nodos_list: nodos_list.append(u_comp)
+                elif nodos_list[-1] != u_comp: nodos_list.append(u_comp)
+                if nodos_list[-1] != v_comp: nodos_list.append(v_comp)
 
-        aristas_list = [
-            {
-                "invoker": inv,
-                "invoked": invd,
-                "base_latency": float(base_lat),
-            }
-            for inv, invd, base_lat in edges_data
-        ]
-
-        paths_info[f"path_{idx}"] = {
-            "edges": edges,
-            "edges_data": edges_data,
+        paths_info[path_id] = {
+            "edges": path_info_dict['edges'],
+            "edges_data": edges_data_comp,
             "nodos": nodos_list,
-            "aristas": aristas_list,
-            "current_total": _calculate_path_latency_components(edges_data, estado, l_extra),
+            "aristas": [{"invoker": u, "invoked": v, "base_latency": float(l)} for u, v, l in edges_data_comp],
+            "current_total": _calculate_path_latency_components(edges_data_comp, estado, l_extra),
             "evolucion_por_etapa": [],
         }
 
@@ -468,62 +438,33 @@ def generate_migration_plan(ruta_nodos, ruta_aristas, ruta_paths, c_min, c_max, 
 
     while True:
         on_prem_actuales = {n for n, s in estado.items() if s == 'on-prem'}
-        if not on_prem_actuales:
-            break
+        if not on_prem_actuales: break
 
-        validos = _seleccionar_validos(G, G_crit, df_crit_paths, estado, c_min, c_max, l_extra, umbral, bloqueos_dict, etapa)
+        validos = _seleccionar_validos(G, G_crit, crit_paths_parsed, estado, c_min, c_max, l_extra, umbral, bloqueos_dict, etapa)
         nodos_etapa = [n for n in validos if estado.get(n) == 'on-prem']
 
         if not nodos_etapa:
-            if not fallback_iniciado:
-                print("NO HAY CANDIDATOS VÁLIDOS, MIGRANDO RESTANTES DIRECTAMENTE")
-                fallback_iniciado = True
+            if not fallback_iniciado: fallback_iniciado = True
             bloqueados_ahora = {c for c, e in bloqueos_dict.items() if etapa < e}
             candidatos_fallback = sorted(on_prem_actuales - bloqueados_ahora)
             nodos_etapa = candidatos_fallback[:c_max] if candidatos_fallback else sorted(on_prem_actuales)[:c_max]
 
-        for n in nodos_etapa:
-            estado[n] = 'cloud'
+        for n in nodos_etapa: estado[n] = 'cloud'
 
-        # Recalcular current_total de cada path tras la migración de la etapa
-        for path_info in paths_info.values():
-            path_info["current_total"] = _calculate_path_latency_components(
-                path_info["edges_data"], estado, l_extra
-            )
+        for p_info in paths_info.values():
+            p_info["current_total"] = _calculate_path_latency_components(p_info["edges_data"], estado, l_extra)
 
-        worst = max(
-            (p["current_total"] for p in paths_info.values()),
-            default=0,
-        )
-
+        worst = max((p["current_total"] for p in paths_info.values()), default=0)
         etapa += 1
-        #print(f"Etapa {etapa}: {nodos_etapa}")
 
-        etapas_output.append({
-            "stage_number": etapa,
-            "migrated_components": nodos_etapa,
-            "worst_critical_time": round(worst, 3)
-        })
+        etapas_output.append({"stage_number": etapa, "migrated_components": nodos_etapa, "worst_critical_time": round(worst, 3)})
 
-        # Guardar evolución por path en esta etapa
-        for path_info in paths_info.values():
-            path_info["evolucion_por_etapa"].append({
-                "stage_number": etapa,
-                "critical_time": float(path_info["current_total"]),
-                "migrated_components": list(nodos_etapa),
-            })
+        for p_info in paths_info.values():
+            p_info["evolucion_por_etapa"].append({"stage_number": etapa, "critical_time": float(p_info["current_total"]), "migrated_components": list(nodos_etapa)})
 
-    # Construir rutas_criticas_output
-    rutas_criticas_output = []
-    for path_id, path_info in paths_info.items():
-        path_num = int(path_id.split('_')[1]) if '_' in path_id else path_id
-        rutas_criticas_output.append({
-            "path_number": path_num,
-            "nodos": path_info["nodos"],
-            "aristas": path_info["aristas"],
-            "evolucion_por_etapa": path_info.get("evolucion_por_etapa", []),
-        })
+    rutas_criticas_output = [{"path_number": int(pid.split('_')[1]) if '_' in pid else pid, "nodos": p["nodos"], "aristas": p["aristas"], "evolucion_por_etapa": p.get("evolucion_por_etapa", [])} for pid, p in paths_info.items()]
 
+<<<<<<< HEAD
     return {
         "etapas": etapas_output,
         "rutas_criticas": rutas_criticas_output,
@@ -547,3 +488,6 @@ if __name__ == "__main__":
         json.dump(etapas_output, f, indent=4)
     print(f"Exportado a: {output_path}")
     """
+=======
+    return {"etapas": etapas_output, "rutas_criticas": rutas_criticas_output, "meets_requirements": not fallback_iniciado}
+>>>>>>> 4966ae3 (refactor(algorithms): standardize interfaces and remove pandas dependency from math logic)

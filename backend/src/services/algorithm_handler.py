@@ -4,6 +4,8 @@ import traceback
 import numpy as np
 from sqlalchemy.orm import Session
 from uuid import UUID
+import pandas as pd
+import ast
 
 from app.db import crud, models
 
@@ -28,75 +30,197 @@ def to_serializable(obj):
     if isinstance(obj, dict): return {k: to_serializable(v) for k, v in obj.items()}
     return obj
 
-def validate_and_prepare_data(buffer_nodos, buffer_aristas, buffer_paths):
+import ast
+import pandas as pd
+
+def validate_and_prepare_data(buffer_nodos, buffer_aristas, buffer_paths, l_extra):
     """
-    1. Valida que los CSVs tengan las cabeceras correctas.
-    2. Usa Pandas para limpiar duplicados, NaN y percentiles.
-    3. Devuelve estructuras nativas de Python (diccionarios) para que los algoritmos no dependan de Pandas.
+    Lee los CSVs, valida las cabeceras reales y aplica el parsing
+    original de guangorithm.py (ast.literal_eval, percentiles y diccionarios).
     """
-    # ── VALIDACIÓN ──
+    # ── 1. VALIDACIÓN ESTRICTA DE CABECERAS REALES ──
     try:
         df_n = pd.read_csv(buffer_nodos, nrows=0)
         df_a = pd.read_csv(buffer_aristas, nrows=0)
         df_p = pd.read_csv(buffer_paths, nrows=0)
         
-        if 'component' not in df_n.columns: raise ValueError(f"Falta 'component' en NODOS. Cabeceras: {list(df_n.columns)}")
-        if not all(c in df_a.columns for c in ['invoker', 'invoked', 'avg_time']): raise ValueError("Aristas inválidas.")
-        if not all(c in df_p.columns for c in ['path_number', 'node']): raise ValueError("Rutas inválidas.")
+        if not all(c in df_n.columns for c in ['node', 'architecture', 'component']): 
+            raise ValueError(f"Archivo de NODOS inválido. Cabeceras detectadas: {list(df_n.columns)}")
+        if not all(c in df_a.columns for c in ['invoker', 'invoked', 'avg_time']): 
+            raise ValueError(f"Archivo de ARISTAS inválido. Cabeceras detectadas: {list(df_a.columns)}")
+        if 'full_path' not in df_p.columns: 
+            raise ValueError(f"Archivo de RUTAS inválido. Cabeceras detectadas: {list(df_p.columns)}")
     except pd.errors.EmptyDataError:
         raise ValueError("Uno de los archivos CSV está completamente vacío.")
     
-    # Devolvemos el cursor a 0 para leer los datos reales
     buffer_nodos.seek(0)
     buffer_aristas.seek(0)
     buffer_paths.seek(0)
 
-    # ── LECTURA Y LIMPIEZA ──
+    # ── 2. LECTURA ──
     nodes_df = pd.read_csv(buffer_nodos)
     edges_df = pd.read_csv(buffer_aristas)
     paths_df = pd.read_csv(buffer_paths)
 
-    # 1. Nodos -> dict {component_id: architecture}
-    nodes_dict = nodes_df.drop_duplicates(subset=['component']).set_index('component')['architecture'].to_dict()
+    # ── 3. EXTRACCIÓN Y LIMPIEZA ──
 
-    # 2. Aristas -> dict {(invoker, invoked): avg_time}
-    # Aseguramos compatibilidad si la columna viene como 'base_latency' o 'avg_time'
-    lat_col = 'avg_time' if 'avg_time' in edges_df.columns else 'base_latency'
-    edges_df[lat_col] = edges_df[lat_col].abs()
-    edges_df = edges_df.dropna(subset=[lat_col])
-    cap_val = edges_df[lat_col].quantile(0.95)
-    edges_df[lat_col] = edges_df[lat_col].clip(upper=cap_val)
-    edges_dict = edges_df.set_index(['invoker', 'invoked'])[lat_col].to_dict()
+    # A) method_to_component (desde nodes_df)
+    method_to_component = {}
+    for _, row in nodes_df.iterrows():
+        method_to_component[row['node']] = row['component']
 
-    # 3. Rutas -> dict {path_number: [nodo1, nodo2, ...]}
-    paths_dict = paths_df.groupby('path_number')['node'].apply(list).to_dict()
+    # B) Procesamiento de Nodos
+    def resolve_arch(archs):
+        return 'on-prem' if 'on-prem' in archs.values else 'cloud'
 
-    # 4. Mapa Método-Componente -> dict {node: component}
-    # (Asumiendo que paths_df tiene la columna 'component' pre-calculada, si no, se saca de nodes_df)
-    method_to_component = paths_df.drop_duplicates(subset=['node']).set_index('node')['component'].to_dict() if 'component' in paths_df.columns else {}
+    comp_arch = nodes_df.groupby('component')['architecture'].apply(resolve_arch).reset_index()
+    comp_arch.columns = ['component', 'architecture']
+    comp_nodes = nodes_df.groupby('component')['node'].apply(list).reset_index()
+    grouped = comp_arch.merge(comp_nodes, on='component')
 
-    return nodes_dict, edges_dict, paths_dict, method_to_component
+    nodes_dict = {}
+    for _, row in grouped.iterrows():
+        nodes_dict[row['component']] = {
+            "nodes": row['node'],
+            "migrated": row['architecture'] == "cloud"
+        }
+        
+    pending_components = {comp_id for comp_id, info in nodes_dict.items() if not info["migrated"]}
+
+    # C) Procesamiento de Aristas
+    edges_df = edges_df.copy()
+    mask_neg = edges_df['avg_time'] < 0
+    if mask_neg.sum():
+        edges_df.loc[mask_neg, 'avg_time'] = edges_df.loc[mask_neg, 'avg_time'].abs()
+        
+    if edges_df['avg_time'].isna().sum():
+        edges_df = edges_df.dropna(subset=['avg_time'])
+        
+    cap_val = float(edges_df['avg_time'].quantile(0.95))
+    mask_out = edges_df['avg_time'] > cap_val
+    if mask_out.sum():
+        edges_df.loc[mask_out, 'avg_time'] = cap_val
+        
+    edges_dict = {}
+    for _, row in edges_df.iterrows():
+        edges_dict[(row['invoker'], row['invoked'])] = row['avg_time']
+
+    # D) Función auxiliar de latencia inicial
+    def calculate_path_latency(path_info, pending, m2c, l_ext):
+        acc_latency = {}
+        for invoker, invoked, edge_latency in path_info['edges_data']:
+            comp_invoker = m2c.get(invoker)
+            comp_invoked = m2c.get(invoked)
+            crossing = 0
+            if comp_invoker and comp_invoked:
+                if (comp_invoker in pending) != (comp_invoked in pending):
+                    crossing = 1
+            if invoker not in acc_latency:
+                acc_latency[invoker] = 0
+            new_latency = acc_latency[invoker] + edge_latency + (crossing * l_ext)
+            if invoked not in acc_latency:
+                acc_latency[invoked] = new_latency
+            else:
+                acc_latency[invoked] = max(acc_latency[invoked], new_latency)
+        return max(acc_latency.values()) if acc_latency else 0
+
+    # E) Procesamiento de Rutas (parse_path real)
+    paths_dict = {}
+    seen_paths = set()
+    for index, row in paths_df.iterrows():
+        path_str = row['full_path']
+        try:
+            raw_tuples = ast.literal_eval(path_str)
+        except (ValueError, SyntaxError):
+            raw_tuples = []
+            
+        cleaned_edges = []
+        seen = set()
+        for invoker, invoked in raw_tuples:
+            if invoker == -1 or invoked == -1:
+                continue
+            current_tuple = (invoker, invoked)
+            if current_tuple in seen:
+                continue
+            seen.add(current_tuple)
+            cleaned_edges.append(current_tuple)
+
+        if not cleaned_edges:
+            continue
+        if tuple(cleaned_edges) in seen_paths:
+            continue
+        seen_paths.add(tuple(cleaned_edges))
+
+        edges_data = [(inv, invd, edges_dict.get((inv, invd), 0)) for inv, invd in cleaned_edges]
+        paths_dict[f"path_{index}"] = {
+            "edges": cleaned_edges,
+            "edges_data": edges_data,
+            "current_total": 0
+        }
+
+    # Asignar latencias iniciales
+    for path_id, path_info in paths_dict.items():
+        path_info["current_total"] = calculate_path_latency(path_info, pending_components, method_to_component, l_extra)
+
+    # F) Mapas de adyacencia y cruce
+    component_to_paths = {}
+    component_adjacency = {}
+    for comp in nodes_dict.keys():
+        component_to_paths[comp] = set()
+        component_adjacency[comp] = {'invokes': set(), 'invoked_by': set()}
+
+    for path_id, path_info in paths_dict.items():
+        for invoker, invoked in path_info['edges']:
+            comp_invoker = method_to_component.get(invoker)
+            comp_invoked = method_to_component.get(invoked)
+            if comp_invoker: component_to_paths[comp_invoker].add(path_id)
+            if comp_invoked: component_to_paths[comp_invoked].add(path_id)
+            if comp_invoker and comp_invoked and comp_invoker != comp_invoked:
+                component_adjacency[comp_invoker]['invokes'].add(comp_invoked)
+                component_adjacency[comp_invoked]['invoked_by'].add(comp_invoker)
+
+    # G) Clustering Leiden
+    try:
+        import igraph as ig
+        import leidenalg
+        all_components = nodes_df['component'].unique().tolist()
+        comp_to_idx = {c: i for i, c in enumerate(all_components)}
+        edge_weights = {}
+        for _, row in edges_df.iterrows():
+            avg_time = row['avg_time']
+            if pd.isna(avg_time): continue
+            comp_inv = method_to_component.get(row['invoker'])
+            comp_invd = method_to_component.get(row['invoked'])
+            if not comp_inv or not comp_invd or comp_inv == comp_invd: continue
+            key = (min(comp_inv, comp_invd), max(comp_inv, comp_invd))
+            edge_weights[key] = edge_weights.get(key, 0) + avg_time
+            
+        g = ig.Graph(n=len(all_components), edges=[(comp_to_idx[a], comp_to_idx[b]) for a, b in edge_weights], directed=False)
+        g.es['weight'] = list(edge_weights.values())
+        partition = leidenalg.find_partition(g, leidenalg.CPMVertexPartition, weights='weight', resolution_parameter=10.0, n_iterations=10, seed=42)
+        component_to_cluster = {all_components[node_idx]: cluster_id for cluster_id, members in enumerate(partition) for node_idx in members}
+    except ImportError:
+        all_components = nodes_df['component'].unique().tolist()
+        component_to_cluster = {c: i for i, c in enumerate(all_components)}
+
+    return edges_dict, nodes_dict, paths_dict, method_to_component, component_to_paths, component_adjacency, pending_components, component_to_cluster
 
 def run_simulation_process(db: Session, sim_id: UUID):
     sim = crud.get_simulation(db, sim_id)
     if not sim: return
 
     try:
-        # Recuperamos archivos desde PostgreSQL en memoria (Fase 1)
         buffer_nodos = io.BytesIO(sim.nodes_file.content)
         buffer_aristas = io.BytesIO(sim.edges_file.content)
         buffer_paths = io.BytesIO(sim.paths_file.content)
         
-        c_min = sim.c_min
-        c_max = sim.c_max
-        l_max = sim.l_max
-        l_extra = sim.l_extra
-        threshold = sim.threshold
-
-        # 3. Extraemos el algoritmo seleccionado (por defecto guangorithm)
-        algo_type = getattr(sim, "algorithm_type", "guangorithm")
+        nodes_dict, edges_dict, paths_dict, method_to_component, \
+        component_to_paths, component_adjacency, pending_components, \
+        component_to_cluster = validate_and_prepare_data(
+            buffer_nodos, buffer_aristas, buffer_paths, sim.l_extra
+        )
         
-        # 4. Seleccionamos la estrategia (función) a ejecutar
+        algo_type = getattr(sim, "algorithm_type", "guangorithm")
         algorithm_func = ALGORITHM_STRATEGIES.get(algo_type, run_guangorithm)
         
         logger.info(f"Ejecutando simulación {sim_id} con la estrategia: {algo_type}")
@@ -104,14 +228,20 @@ def run_simulation_process(db: Session, sim_id: UUID):
         bloqueos_db = db.query(models.BlockedComponents).filter_by(simulation_id=sim_id).all()
         bloqueos_lista = [{"component_name": b.component_name, "stage_number": b.stage_number} for b in bloqueos_db]
 
-        # 5. Ejecutamos la función dinámica
         migration_plan = algorithm_func(
-            ruta_nodos=buffer_nodos,
-            ruta_aristas=buffer_aristas,
-            ruta_paths=buffer_paths,
-            c_min=c_min, c_max=c_max,
-            l_max=l_max, l_extra=l_extra,
-            umbral=threshold,
+            nodes_dict=nodes_dict,
+            edges_dict=edges_dict,
+            paths_dict=paths_dict,
+            method_to_component=method_to_component,
+            component_to_paths=component_to_paths,
+            component_adjacency=component_adjacency,
+            pending_components=pending_components,
+            component_to_cluster=component_to_cluster,
+            c_min=sim.c_min, 
+            c_max=sim.c_max,
+            l_max=sim.l_max, 
+            l_extra=sim.l_extra,
+            umbral=sim.threshold,
             lista_bloqueos=bloqueos_lista
         )
         
@@ -128,13 +258,10 @@ def run_simulation_process(db: Session, sim_id: UUID):
         ]
         crud.add_simulation_stages_bulk(db, sim_id, stages_data)
 
-        # 3. Cálculo de HITOS (Affected Stages) por Camino Crítico
-        # Esto es lo que soluciona el "salto a la derecha"
+        # 3. Cálculo de HITOS (Affected Stages)
         for path_data in plan["rutas_criticas"]:
-            path_nodes = set(path_data["nodos"]) # Componentes en este camino
-            
-            # Buscamos en qué etapas se movió algún componente de este set
-            hitos = [0] # Siempre incluir la etapa inicial
+            path_nodes = set(path_data["nodos"]) 
+            hitos = [0] 
             for i, etapa in enumerate(plan["etapas"]):
                 componentes_etapa = set(etapa["migrated_components"])
                 # Si hay intersección, esta etapa AFECTA al camino
