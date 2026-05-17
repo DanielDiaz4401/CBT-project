@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Enum, LargeBinary
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
-from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY, UUID as PG_UUID, JSON
 
 Base = declarative_base()
 
@@ -133,6 +133,8 @@ class CriticalPathStage(Base):
     stage_number = Column(Integer)
     critical_time = Column(Float)
     migrated_components = Column(PG_ARRAY(String))
+    worst_path_edges = Column(JSON, default=list)
+    extra_latency_edges = Column(JSON, default=list)
     
     path = relationship("CriticalPath", back_populates="stage_details")
 

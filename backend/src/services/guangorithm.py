@@ -160,10 +160,29 @@ def get_stages(c_min, c_max, l_max_final, l_extra, pending_components, paths_dic
         stage_number = len(stages)
         for path_info in paths_dict.values():
             if 'evolucion_por_etapa' not in path_info: path_info['evolucion_por_etapa'] = []
+            
+            extra_edges = []
+            worst_edges = []
+            
+            # Recorremos las aristas y traducimos el método -> componente
+            for inv, invd, base_lat in path_info['edges_data']:
+                comp_inv = method_to_component.get(inv, str(inv))
+                comp_invd = method_to_component.get(invd, str(invd))
+                
+                edge_dict = {"invoker": comp_inv, "invoked": comp_invd, "base_latency": float(base_lat)}
+                worst_edges.append(edge_dict) # Guardamos el mapa del camino
+                
+                # Si uno sigue on-prem y el otro ya no está (es decir, está en la nube), sufren L_extra
+                if comp_inv and comp_invd:
+                    if (comp_inv in components_on_prem) != (comp_invd in components_on_prem):
+                        extra_edges.append(edge_dict)
+            
             path_info['evolucion_por_etapa'].append({
                 "stage_number": stage_number,
                 "critical_time": float(path_info.get("current_total", 0)),
-                "migrated_components": current_stage.copy()
+                "migrated_components": current_stage.copy(),
+                "worst_path_edges": worst_edges,           # <-- Nueva propiedad para el JSONB
+                "extra_latency_edges": extra_edges         # <-- Nueva propiedad para el JSONB
             })
 
     return stages, critical_paths_latency, forzadas

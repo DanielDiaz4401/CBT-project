@@ -85,7 +85,9 @@ CREATE TABLE critical_path_stages (
     path_id INTEGER REFERENCES critical_paths(id) ON DELETE CASCADE,
     stage_number INTEGER NOT NULL,
     critical_time NUMERIC(10, 4),
-    migrated_components TEXT[]
+    migrated_components TEXT[],
+    worst_path_edges JSONB DEFAULT '[]'::jsonb,
+    extra_latency_edges JSONB DEFAULT '[]'::jsonb
 );
 
 CREATE TABLE blocked_components (

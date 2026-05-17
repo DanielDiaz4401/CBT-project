@@ -280,6 +280,9 @@ def run_simulation_process(db: Session, sim_id: UUID):
             crud.add_path_nodes_bulk(db, db_path.id, path_data["nodos"])
             crud.add_path_edges_bulk(db, db_path.id, path_data["aristas"])
 
+            if stages_to_insert:
+                crud.add_critical_path_stages_bulk(db, db_path.id, stages_to_insert)
+
         if plan["meets_requirements"]:
             crud.update_simulation_status(db, sim_id, models.SimulationStatus.COMPLETED)
         else:

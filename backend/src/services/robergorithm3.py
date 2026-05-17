@@ -173,8 +173,27 @@ def generate_migration_plan(nodes_dict, edges_dict, paths_dict, method_to_compon
 
         etapas_output.append({"stage_number": etapa, "migrated_components": nodos_etapa, "worst_critical_time": round(worst, 3)})
 
+        # --- NUEVO CÁLCULO DE ARISTAS HÍBRIDAS EN TIEMPO DE ESCRITURA ---
         for p_info in paths_info.values():
-            p_info["evolucion_por_etapa"].append({"stage_number": etapa, "critical_time": float(p_info["current_total"]), "migrated_components": list(nodos_etapa)})
+            extra_edges = []
+            worst_edges = []
+            
+            # Recorremos la estructura interna edges_data_comp que generamos arriba
+            for inv, invd, base_lat in p_info["edges_data"]:
+                edge_dict = {"invoker": inv, "invoked": invd, "base_latency": float(base_lat)}
+                worst_edges.append(edge_dict) # Guardamos el mapa del camino
+                
+                # 'estado' es el diccionario actual de la iteración. Si son distintos, hay L_extra
+                if estado.get(inv, 'on-prem') != estado.get(invd, 'on-prem'):
+                    extra_edges.append(edge_dict)
+
+            p_info["evolucion_por_etapa"].append({
+                "stage_number": etapa, 
+                "critical_time": float(p_info["current_total"]), 
+                "migrated_components": list(nodos_etapa),
+                "worst_path_edges": worst_edges,           # <-- Nueva propiedad para el JSONB
+                "extra_latency_edges": extra_edges         # <-- Nueva propiedad para el JSONB
+            })
 
     rutas_criticas_output = [{"path_number": int(pid.split('_')[1]) if '_' in pid else pid, "nodos": p["nodos"], "aristas": p["aristas"], "evolucion_por_etapa": p.get("evolucion_por_etapa", [])} for pid, p in paths_info.items()]
 
