@@ -83,6 +83,16 @@ def get_stages(c_min, c_max, l_max_final, l_extra, pending_components, paths_dic
     initial_max_latency = max((path_info.get("current_total", 0) for path_info in paths_dict.values()), default=0)
     critical_paths_latency.append(initial_max_latency)
 
+    # --- NUEVO: PRECALCULAR ARISTAS ANTES DE ITERAR ETAPAS (Aumenta muchísimo el rendimiento) ---
+    for path_info in paths_dict.values():
+        aristas_pre = []
+        for inv, invd, base_lat in path_info['edges_data']:
+            comp_inv = method_to_component.get(inv, str(inv))
+            comp_invd = method_to_component.get(invd, str(invd))
+            aristas_pre.append({"invoker": comp_inv, "invoked": comp_invd, "base_latency": float(base_lat)})
+        path_info['aristas_precalculadas'] = aristas_pre
+    # ----------------------------------------------------------------------------------------------
+
     while components_on_prem:
         current_stage = []
         actual_max = max((p["current_total"] for p in paths_dict.values()), default=0)
@@ -161,28 +171,18 @@ def get_stages(c_min, c_max, l_max_final, l_extra, pending_components, paths_dic
         for path_info in paths_dict.values():
             if 'evolucion_por_etapa' not in path_info: path_info['evolucion_por_etapa'] = []
             
-            extra_edges = []
-            worst_edges = []
-            
-            # Recorremos las aristas y traducimos el método -> componente
-            for inv, invd, base_lat in path_info['edges_data']:
-                comp_inv = method_to_component.get(inv, str(inv))
-                comp_invd = method_to_component.get(invd, str(invd))
-                
-                edge_dict = {"invoker": comp_inv, "invoked": comp_invd, "base_latency": float(base_lat)}
-                worst_edges.append(edge_dict) # Guardamos el mapa del camino
-                
-                # Si uno sigue on-prem y el otro ya no está (es decir, está en la nube), sufren L_extra
-                if comp_inv and comp_invd:
-                    if (comp_inv in components_on_prem) != (comp_invd in components_on_prem):
-                        extra_edges.append(edge_dict)
+            # --- FILTRO ULTRARRÁPIDO USANDO LAS ARISTAS PRECALCULADAS ---
+            extra_edges = [
+                e for e in path_info['aristas_precalculadas']
+                if (e["invoker"] in components_on_prem) != (e["invoked"] in components_on_prem)
+            ]
             
             path_info['evolucion_por_etapa'].append({
                 "stage_number": stage_number,
                 "critical_time": float(path_info.get("current_total", 0)),
                 "migrated_components": current_stage.copy(),
-                "worst_path_edges": worst_edges,           # <-- Nueva propiedad para el JSONB
-                "extra_latency_edges": extra_edges         # <-- Nueva propiedad para el JSONB
+                "worst_path_edges": path_info['aristas_precalculadas'],
+                "extra_latency_edges": extra_edges
             })
 
     return stages, critical_paths_latency, forzadas

@@ -134,22 +134,17 @@ def generate_migration_plan(nodes_dict, edges_dict, paths_dict, method_to_compon
 
         # --- CÁLCULO DE ARISTAS HÍBRIDAS (JSONB) EN TIEMPO DE ESCRITURA ---
         for p_info in paths_info.values():
-            extra_edges = []
-            worst_edges = []
-            
-            for inv, invd, base_lat in p_info["edges_data"]:
-                edge_dict = {"invoker": inv, "invoked": invd, "base_latency": float(base_lat)}
-                worst_edges.append(edge_dict)
-                
-                # Si cruzan la frontera on-prem <-> cloud, sufren l_extra
-                if estado.get(inv, 'on-prem') != estado.get(invd, 'on-prem'):
-                    extra_edges.append(edge_dict)
+        # Filtro ultrarrápido (O(E)) usando la lista ya precalculada de aristas
+            extra_edges = [
+                e for e in p_info["aristas"]
+                if estado.get(e["invoker"], 'on-prem') != estado.get(e["invoked"], 'on-prem')
+            ]
 
             p_info["evolucion_por_etapa"].append({
                 "stage_number": etapa, 
                 "critical_time": float(p_info["current_total"]), 
                 "migrated_components": list(nodos_etapa),
-                "worst_path_edges": worst_edges,
+                "worst_path_edges": p_info["aristas"], # Puntero a la lista estática (0 coste de memoria)
                 "extra_latency_edges": extra_edges
             })
 
