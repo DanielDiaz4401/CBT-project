@@ -7,9 +7,7 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE_URL;
 const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, loading, migration }) => {
   if (!skeleton || !currentStepEdges) return null;
 
-  // Extraemos el l_extra de la simulación (por si no existe, ponemos 0 de seguridad)
   const lExtra = migration?.l_extra || 0;
-
   const nodeIds = Object.keys(skeleton.nodes_mapping);
 
   const nodes = nodeIds.map(id => {
@@ -38,7 +36,6 @@ const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, l
     };
   });
 
-  // Modificamos los links para inyectarles la data bruta de latencia
   const links = Object.entries(skeleton.edge_latencies).map(([edgeKey, baseLatency]) => {
     const [sId, tId] = edgeKey.split('|');
     
@@ -52,29 +49,55 @@ const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, l
       (e[0] || e.invoker) === sId && (e[1] || e.invoked) === tId
     );
 
+    // 🎨 GROSORES NORMALIZADOS PARA UN DISEÑO MÁS LIMPIO
+    let linkColor = '#cbd5e1';
+    let linkWidth = 2;
+    let linkType = 'solid';
+    let shadowColor = 'transparent';
+    let shadowBlur = 0;
+
+    if (isCritical && isExtra) {
+      // Ambos: Negro normal con resplandor rojo
+      linkColor = '#000000';
+      linkWidth = 2.5; // Un imperceptible 0.5px extra para que el resplandor rojo asiente bien
+      linkType = 'solid';
+      shadowColor = '#ef4444';
+      shadowBlur = 10;
+    } else if (isCritical) {
+      // Camino Crítico: Negro puro, mismo grosor que las grises
+      linkColor = '#000000';
+      linkWidth = 2;
+      linkType = 'solid';
+    } else if (isExtra) {
+      // Salto de Latencia: Rojo discontinuo, grosor normal
+      linkColor = '#ef4444';
+      linkWidth = 2;
+      linkType = 'dashed';
+    }
+
     return {
       id: edgeKey,
       source: sId,
       target: tId,
-      // Guardamos estos datos personalizados para que el tooltip los pueda leer
       baseLatency: Number(baseLatency),
       isExtra: isExtra,
       lExtraValue: Number(lExtra),
       lineStyle: {
-        color: isCritical || isExtra ? '#ef4444' : '#cbd5e1',
-        width: isCritical ? 5 : 2,
-        type: isExtra && !isCritical ? 'dashed' : 'solid',
+        color: linkColor,
+        width: linkWidth,
+        type: linkType,
+        shadowColor: shadowColor,
+        shadowBlur: shadowBlur,
         curveness: 0.15
       },
       symbol: ['none', 'arrow'],
-      symbolSize: [0, isCritical ? 12 : 8]
+      symbolSize: [0, isCritical || isExtra ? 9 : 8] // Flechas sutiles en lugar de gigantes
     };
   });
 
   const option = {
     animationDurationUpdate: 800, 
     animationEasingUpdate: 'quinticInOut',
-    // 🔥 AQUÍ ESTÁ LA MAGIA DEL TOOLTIP 🔥
     tooltip: {
       show: true,
       trigger: 'item',
@@ -82,14 +105,12 @@ const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, l
       borderColor: '#cbd5e1',
       borderWidth: 1,
       padding: 14,
-      borderRadius: 8,
+      borderRadius: 12,
       shadowBlur: 15,
-      shadowColor: 'rgba(0,0,0,0.1)',
+      shadowColor: 'rgba(0,0,0,0.08)',
       formatter: (params) => {
-        // Si el usuario hace hover sobre una arista (link)
         if (params.dataType === 'edge') {
           const { source, target, baseLatency, isExtra, lExtraValue } = params.data;
-          
           let html = `
             <div style="font-weight:900; font-size:13px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 8px; color: #0f172a;">
               ${source} <span style="color:#94a3b8; margin: 0 4px;">➔</span> ${target}
@@ -99,7 +120,6 @@ const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, l
               <span style="color:#3b82f6; font-weight:900; font-size:12px;">${baseLatency.toFixed(2)} ms</span>
             </div>
           `;
-          
           if (isExtra) {
             const total = baseLatency + lExtraValue;
             html += `
@@ -115,14 +135,29 @@ const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, l
           }
           return html;
         } 
-        // Si el usuario hace hover sobre un nodo
         else if (params.dataType === 'node') {
-          const isCloud = cloudNodes.has(params.data.id);
-          const env = isCloud ? 'Cloud Environment' : 'On-Premise Server';
-          const color = isCloud ? '#3b82f6' : '#94a3b8';
+          const methodId = params.data.id;
+          const componentId = skeleton.nodes_mapping[methodId] || "Unknown Component";
+          const isCloud = cloudNodes.has(componentId);
+          const envText = isCloud ? 'Cloud Environment' : 'On-Premise Server';
+          const envColor = isCloud ? '#3b82f6' : '#94a3b8';
+
           return `
-            <div style="font-weight:900; font-size:14px; color: #0f172a; margin-bottom: 4px;">${params.data.id}</div>
-            <div style="color: ${color}; font-weight:bold; font-size:12px;">● ${env}</div>
+            <div style="font-weight:900; font-size:13px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 8px; color: #0f172a; min-width: 220px;">
+              Inspection: <span style="color:#3b82f6;">${methodId}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; gap:16px; margin-bottom:6px; font-size:12px;">
+              <span style="color:#64748b; font-weight:700;">Method:</span>
+              <span style="color:#0f172a; font-weight:800; font-family: monospace;">${methodId}()</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; gap:16px; margin-bottom:6px; font-size:12px;">
+              <span style="color:#64748b; font-weight:700;">Component:</span>
+              <span style="color:#475569; font-weight:800;">${componentId}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; gap:16px; font-size:12px; border-top: 1px dashed #f1f5f9; padding-top: 6px; margin-top: 6px;">
+              <span style="color:#64748b; font-weight:700;">Environment:</span>
+              <span style="color:${envColor}; font-weight:900;">● ${envText}</span>
+            </div>
           `;
         }
       }
@@ -145,7 +180,7 @@ const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, l
       emphasis: {
         focus: 'adjacency', 
         scale: true, 
-        lineStyle: { width: 5 } 
+        lineStyle: { width: 4 } 
       },
       blur: {
         itemStyle: { opacity: 1 },
@@ -309,13 +344,22 @@ export default function VisualizeGraph({ migration }) {
             <div className="w-3 h-3 rounded-full bg-[#3b82f6] border-2 border-[#1e3a8a] shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
             <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Just Migrated</span>
           </div>
+          
           <div className="flex items-center gap-3">
-            <div className="w-3 h-1 rounded-full bg-[#ef4444]"></div>
+            {/* LEYENDA ESTILIZADA A GROSOR 2px */}
+            <div className="w-4 h-[2px] bg-[#000000]"></div>
             <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Critical Path</span>
           </div>
+          
           <div className="flex items-center gap-3">
-            <div className="w-3 h-0 border-b-2 border-dashed border-[#ef4444]"></div>
+            {/* LEYENDA ESTILIZADA A GROSOR 2px DISCONTINUO */}
+            <div className="w-4 h-[2px] border-b-[2px] border-dashed border-[#ef4444]"></div>
             <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Cross-Traffic (l_extra)</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="w-4 h-[2.5px] bg-[#000000] shadow-[0_0_6px_#ef4444]"></div>
+            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Both (Critical + Cross)</span>
           </div>
         </div>
       </div>
@@ -325,7 +369,7 @@ export default function VisualizeGraph({ migration }) {
         cloudNodes={cloudNodes} 
         currentStepEdges={currentStepEdges} 
         loading={loading}
-        migration={migration} // 🔥 Pasamos el objeto migration completo hacia abajo
+        migration={migration}
       />
 
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20">
