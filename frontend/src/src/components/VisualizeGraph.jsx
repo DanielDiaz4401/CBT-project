@@ -4,27 +4,27 @@ import ReactECharts from 'echarts-for-react';
 const API_BASE = import.meta.env.PUBLIC_API_BASE_URL;
 
 // --- 1. SUBCOMPONENTE AISLADO DEL CANVAS ---
-const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, loading }) => {
+const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, loading, migration }) => {
   if (!skeleton || !currentStepEdges) return null;
+
+  // Extraemos el l_extra de la simulación (por si no existe, ponemos 0 de seguridad)
+  const lExtra = migration?.l_extra || 0;
 
   const nodeIds = Object.keys(skeleton.nodes_mapping);
 
   const nodes = nodeIds.map(id => {
     const isCloud = cloudNodes.has(id);
-    // 🔥 VERIFICAMOS SI EL NODO ACABA DE MIGRAR EN ESTA ETAPA EXACTA
     const isNewlyMigrated = currentStepEdges.newly_migrated_nodes?.includes(id);
 
     return {
       id: id, 
       name: id,
-      symbolSize: isNewlyMigrated ? 48 : 42, // Lo hacemos un pelín más grande para que destaque
+      symbolSize: isNewlyMigrated ? 48 : 42, 
       itemStyle: {
         color: isCloud ? '#3b82f6' : '#94a3b8',
-        // Borde azul oscuro si acaba de migrar, blanco si ya estaba
         borderColor: isNewlyMigrated ? '#1e3a8a' : '#ffffff', 
         borderWidth: isNewlyMigrated ? 4 : 3,
         shadowBlur: isNewlyMigrated ? 15 : 8,
-        // Brillo azulado si acaba de migrar
         shadowColor: isNewlyMigrated ? 'rgba(59, 130, 246, 0.6)' : 'rgba(0,0,0,0.12)'
       },
       label: {
@@ -38,7 +38,8 @@ const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, l
     };
   });
 
-  const links = Object.entries(skeleton.edge_latencies).map(([edgeKey]) => {
+  // Modificamos los links para inyectarles la data bruta de latencia
+  const links = Object.entries(skeleton.edge_latencies).map(([edgeKey, baseLatency]) => {
     const [sId, tId] = edgeKey.split('|');
     
     const worstEdges = currentStepEdges?.worst_path_edges || [];
@@ -55,6 +56,10 @@ const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, l
       id: edgeKey,
       source: sId,
       target: tId,
+      // Guardamos estos datos personalizados para que el tooltip los pueda leer
+      baseLatency: Number(baseLatency),
+      isExtra: isExtra,
+      lExtraValue: Number(lExtra),
       lineStyle: {
         color: isCritical || isExtra ? '#ef4444' : '#cbd5e1',
         width: isCritical ? 5 : 2,
@@ -69,6 +74,59 @@ const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, l
   const option = {
     animationDurationUpdate: 800, 
     animationEasingUpdate: 'quinticInOut',
+    // 🔥 AQUÍ ESTÁ LA MAGIA DEL TOOLTIP 🔥
+    tooltip: {
+      show: true,
+      trigger: 'item',
+      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+      borderColor: '#cbd5e1',
+      borderWidth: 1,
+      padding: 14,
+      borderRadius: 8,
+      shadowBlur: 15,
+      shadowColor: 'rgba(0,0,0,0.1)',
+      formatter: (params) => {
+        // Si el usuario hace hover sobre una arista (link)
+        if (params.dataType === 'edge') {
+          const { source, target, baseLatency, isExtra, lExtraValue } = params.data;
+          
+          let html = `
+            <div style="font-weight:900; font-size:13px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 8px; color: #0f172a;">
+              ${source} <span style="color:#94a3b8; margin: 0 4px;">➔</span> ${target}
+            </div>
+            <div style="display:flex; justify-content:space-between; gap:24px; margin-bottom:4px;">
+              <span style="color:#64748b; font-weight:700; font-size:12px;">Base Latency:</span>
+              <span style="color:#3b82f6; font-weight:900; font-size:12px;">${baseLatency.toFixed(2)} ms</span>
+            </div>
+          `;
+          
+          if (isExtra) {
+            const total = baseLatency + lExtraValue;
+            html += `
+              <div style="display:flex; justify-content:space-between; gap:24px; margin-bottom:8px;">
+                <span style="color:#64748b; font-weight:700; font-size:12px;">Cross-Traffic Penalty:</span>
+                <span style="color:#ef4444; font-weight:900; font-size:12px;">+${lExtraValue.toFixed(2)} ms</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; gap:24px; border-top: 1px dashed #cbd5e1; padding-top: 8px;">
+                <span style="color:#0f172a; font-weight:800; font-size:13px;">Total Latency:</span>
+                <span style="color:#ef4444; font-weight:900; font-size:14px;">${total.toFixed(2)} ms</span>
+              </div>
+            `;
+          }
+          return html;
+        } 
+        // Si el usuario hace hover sobre un nodo
+        else if (params.dataType === 'node') {
+          const isCloud = cloudNodes.has(params.data.id);
+          const env = isCloud ? 'Cloud Environment' : 'On-Premise Server';
+          const color = isCloud ? '#3b82f6' : '#94a3b8';
+          return `
+            <div style="font-weight:900; font-size:14px; color: #0f172a; margin-bottom: 4px;">${params.data.id}</div>
+            <div style="color: ${color}; font-weight:bold; font-size:12px;">● ${env}</div>
+          `;
+        }
+      }
+    },
     series: [{
       id: 'migration-topology', 
       type: 'graph',
@@ -154,7 +212,6 @@ export default function VisualizeGraph({ migration }) {
   const loadStepEdges = (stageNum, currentPathNumber) => {
     const targetPath = currentPathNumber !== undefined ? currentPathNumber : pathNumber;
     
-    // Evitamos peticiones si no hay ruta seleccionada
     if (targetPath === '' || targetPath === undefined || targetPath === null) return;
 
     fetch(`${API_BASE}/${migration.id}/stages/${stageNum}/critical-path-update?path_number=${targetPath}`)
@@ -196,7 +253,6 @@ export default function VisualizeGraph({ migration }) {
 
     const accumulated = new Set(skeleton.initial_cloud_nodes || []);
     allStages.forEach((stage) => {
-      // Usamos el número real de la etapa para sincronizar
       if (stage.stage_number <= currentStageLimit) {
         stage.migrated_components.forEach(node => accumulated.add(node));
       }
@@ -249,19 +305,14 @@ export default function VisualizeGraph({ migration }) {
             <div className="w-3 h-3 rounded-full bg-[#3b82f6] border-2 border-white shadow-sm"></div>
             <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Cloud Node</span>
           </div>
-          
-          {/* 🔥 NUEVO ITEM DE LA LEYENDA */}
           <div className="flex items-center gap-3">
             <div className="w-3 h-3 rounded-full bg-[#3b82f6] border-2 border-[#1e3a8a] shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
             <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Just Migrated</span>
           </div>
-
           <div className="flex items-center gap-3">
             <div className="w-3 h-1 rounded-full bg-[#ef4444]"></div>
             <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Critical Path</span>
           </div>
-          
-          {/* 🔥 LEYENDA DE PENALIZACIÓN */}
           <div className="flex items-center gap-3">
             <div className="w-3 h-0 border-b-2 border-dashed border-[#ef4444]"></div>
             <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Cross-Traffic (l_extra)</span>
@@ -274,6 +325,7 @@ export default function VisualizeGraph({ migration }) {
         cloudNodes={cloudNodes} 
         currentStepEdges={currentStepEdges} 
         loading={loading}
+        migration={migration} // 🔥 Pasamos el objeto migration completo hacia abajo
       />
 
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20">
