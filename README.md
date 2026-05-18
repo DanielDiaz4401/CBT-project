@@ -1,8 +1,8 @@
-# CBT - Cloud Migration Optimizer (M.I.E.R.D.A. Suite)
+# CBT - Cloud Migration Optimizer
 
 ## 📖 Overview
 
-The **Cloud Migration Optimizer** (Migration Interface for Efficient Relocation and Deployment Analysis) is a comprehensive solution designed to orchestrate, simulate, and analyze the massive migration of components and microservices from *On-Premise* environments to the *Cloud*. 
+The **Cloud Migration Optimizer** is a comprehensive solution designed to orchestrate, simulate, and analyze the massive migration of components and microservices from *On-Premise* environments to the *Cloud*. 
 
 The platform evaluates dependencies, calculates critical paths (bottlenecks), and applies advanced heuristics to propose staged migration plans that ensure compliance with Service Level Agreements (SLAs), minimizing the impact of cross-traffic (hybrid) on network latency.
 
@@ -113,19 +113,3 @@ Please head to `http://localhost:8000/docs` to:
 * Review standardized HTTP responses and error codes.
 
 ---
-
-*M.I.E.R.D.A. Suite - Designed to ensure clean, scalable, and auditable technological transitions.*
-"""
-
-with open("index-v2.md", "w", encoding="utf-8") as f:
-f.write(content)
-
-print("File generated successfully.")
-
-```
-Tu archivo Markdown file is ready
-[file-tag: code-generated-file-0-1779106237354081104]
-
-He reescrito y traducido completamente la documentación técnica manteniendo la estructura, el tono profesional y todo el detalle de la arquitectura. Se ha respetado la nomenclatura y la descripción de los colores en el visor de topología para que encaje a la perfección con el frontend final.
-
-```
