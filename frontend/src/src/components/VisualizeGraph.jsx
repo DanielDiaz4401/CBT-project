@@ -11,16 +11,21 @@ const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, l
 
   const nodes = nodeIds.map(id => {
     const isCloud = cloudNodes.has(id);
+    // 🔥 VERIFICAMOS SI EL NODO ACABA DE MIGRAR EN ESTA ETAPA EXACTA
+    const isNewlyMigrated = currentStepEdges.newly_migrated_nodes?.includes(id);
+
     return {
       id: id, 
       name: id,
-      symbolSize: 42,
+      symbolSize: isNewlyMigrated ? 48 : 42, // Lo hacemos un pelín más grande para que destaque
       itemStyle: {
         color: isCloud ? '#3b82f6' : '#94a3b8',
-        borderColor: '#ffffff',
-        borderWidth: 3,
-        shadowBlur: 8,
-        shadowColor: 'rgba(0,0,0,0.12)'
+        // Borde azul oscuro si acaba de migrar, blanco si ya estaba
+        borderColor: isNewlyMigrated ? '#1e3a8a' : '#ffffff', 
+        borderWidth: isNewlyMigrated ? 4 : 3,
+        shadowBlur: isNewlyMigrated ? 15 : 8,
+        // Brillo azulado si acaba de migrar
+        shadowColor: isNewlyMigrated ? 'rgba(59, 130, 246, 0.6)' : 'rgba(0,0,0,0.12)'
       },
       label: {
         show: true,
@@ -36,11 +41,13 @@ const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, l
   const links = Object.entries(skeleton.edge_latencies).map(([edgeKey]) => {
     const [sId, tId] = edgeKey.split('|');
     
-    // Comprobaciones seguras por si la API envía objetos o arrays en los JSON
-    const isCritical = currentStepEdges.worst_path_edges.some(e => 
+    const worstEdges = currentStepEdges?.worst_path_edges || [];
+    const extraEdges = currentStepEdges?.extra_latency_edges || [];
+
+    const isCritical = worstEdges.some(e => 
       (e[0] || e.invoker) === sId && (e[1] || e.invoked) === tId
     );
-    const isExtra = currentStepEdges.extra_latency_edges.some(e => 
+    const isExtra = extraEdges.some(e => 
       (e[0] || e.invoker) === sId && (e[1] || e.invoked) === tId
     );
 
@@ -128,37 +135,39 @@ export default function VisualizeGraph({ migration }) {
 
   useEffect(() => {
     if (migration?.id) {
-      // Cargamos rutas críticas
       fetch(`${API_BASE}/${migration.id}/critical-paths`)
         .then(res => res.json())
         .then(data => {
           setMilestones(data);
           if (data.length > 0) {
             setPathNumber(String(data[0].path_number));
-            // Pasamos "data" directamente porque setMilestones es asíncrono
             loadSkeleton(data[0].path_number, data); 
           }
         });
 
-      // Cargamos el histórico de componentes on-prem/cloud
       fetch(`${API_BASE}/${migration.id}/stages`)
         .then(res => res.json())
         .then(data => setAllStages(data));
     }
   }, [migration.id]);
 
-  // 🛡️ ACTUALIZADO: Pasamos el parámetro a la URL explícitamente
   const loadStepEdges = (stageNum, currentPathNumber) => {
     const targetPath = currentPathNumber !== undefined ? currentPathNumber : pathNumber;
+    
+    // Evitamos peticiones si no hay ruta seleccionada
     if (targetPath === '' || targetPath === undefined || targetPath === null) return;
 
     fetch(`${API_BASE}/${migration.id}/stages/${stageNum}/critical-path-update?path_number=${targetPath}`)
-      .then(res => res.json())
-      .then(data => setCurrentStepEdges(data))
+      .then(res => {
+        if (!res.ok) throw new Error("Error en la API");
+        return res.json();
+      })
+      .then(data => {
+        if (data.worst_path_edges) setCurrentStepEdges(data);
+      })
       .catch(err => console.error("Error cargando aristas:", err));
   };
 
-  // 🛡️ ACTUALIZADO: Usa parámetros frescos para evitar bugs asíncronos en el primer render
   const loadSkeleton = async (num, freshMilestones) => {
     setLoading(true);
     try {
@@ -186,7 +195,8 @@ export default function VisualizeGraph({ migration }) {
     const currentStageLimit = pathInfo?.affected_stages[stageIdx] ?? 0;
 
     const accumulated = new Set(skeleton.initial_cloud_nodes || []);
-    allStages.forEach((stage, idx) => {
+    allStages.forEach((stage) => {
+      // Usamos el número real de la etapa para sincronizar
       if (stage.stage_number <= currentStageLimit) {
         stage.migrated_components.forEach(node => accumulated.add(node));
       }
@@ -239,9 +249,22 @@ export default function VisualizeGraph({ migration }) {
             <div className="w-3 h-3 rounded-full bg-[#3b82f6] border-2 border-white shadow-sm"></div>
             <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Cloud Node</span>
           </div>
+          
+          {/* 🔥 NUEVO ITEM DE LA LEYENDA */}
+          <div className="flex items-center gap-3">
+            <div className="w-3 h-3 rounded-full bg-[#3b82f6] border-2 border-[#1e3a8a] shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
+            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Just Migrated</span>
+          </div>
+
           <div className="flex items-center gap-3">
             <div className="w-3 h-1 rounded-full bg-[#ef4444]"></div>
             <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Critical Path</span>
+          </div>
+          
+          {/* 🔥 LEYENDA DE PENALIZACIÓN */}
+          <div className="flex items-center gap-3">
+            <div className="w-3 h-0 border-b-2 border-dashed border-[#ef4444]"></div>
+            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Cross-Traffic (l_extra)</span>
           </div>
         </div>
       </div>
