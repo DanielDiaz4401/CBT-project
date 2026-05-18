@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
-import ReactECharts from 'echarts-for-react'; // <-- Importamos ECharts
+import ReactECharts from 'echarts-for-react';
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE_URL;
 
-// --- 1. SUBCOMPONENTE AISLADO DEL CANVAS (AHORA CON ECHARTS) ---
-// --- 1. SUBCOMPONENTE AISLADO DEL CANVAS (AHORA CON ECHARTS) ---
+// --- 1. SUBCOMPONENTE AISLADO DEL CANVAS ---
 const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, loading }) => {
   if (!skeleton || !currentStepEdges) return null;
 
@@ -13,7 +12,7 @@ const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, l
   const nodes = nodeIds.map(id => {
     const isCloud = cloudNodes.has(id);
     return {
-      id: id, // ECharts usa este ID para saber que el nodo no se ha movido
+      id: id, 
       name: id,
       symbolSize: 42,
       itemStyle: {
@@ -37,11 +36,16 @@ const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, l
   const links = Object.entries(skeleton.edge_latencies).map(([edgeKey]) => {
     const [sId, tId] = edgeKey.split('|');
     
-    const isCritical = currentStepEdges.worst_path_edges.some(e => (e[0] || e.invoker) === sId && (e[1] || e.invoked) === tId);
-    const isExtra = currentStepEdges.extra_latency_edges.some(e => (e[0] || e.invoker) === sId && (e[1] || e.invoked) === tId);
+    // Comprobaciones seguras por si la API envía objetos o arrays en los JSON
+    const isCritical = currentStepEdges.worst_path_edges.some(e => 
+      (e[0] || e.invoker) === sId && (e[1] || e.invoked) === tId
+    );
+    const isExtra = currentStepEdges.extra_latency_edges.some(e => 
+      (e[0] || e.invoker) === sId && (e[1] || e.invoked) === tId
+    );
 
     return {
-      id: edgeKey, // <--- CLAVE 1: Le damos un ID fijo a la arista para que no la destruya
+      id: edgeKey,
       source: sId,
       target: tId,
       lineStyle: {
@@ -56,10 +60,10 @@ const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, l
   });
 
   const option = {
-    animationDurationUpdate: 800, // Duración del fundido de color
+    animationDurationUpdate: 800, 
     animationEasingUpdate: 'quinticInOut',
     series: [{
-      id: 'migration-topology', // <--- CLAVE 2: Le decimos a ECharts que TODO el grafo es siempre el mismo
+      id: 'migration-topology', 
       type: 'graph',
       layout: 'force',
       top: 0, bottom: 0, left: 0, right: 0,
@@ -71,7 +75,7 @@ const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, l
         repulsion: 3000, 
         edgeLength: [150, 350], 
         gravity: 0.03, 
-        layoutAnimation: true // <--- CLAVE 3: Lo volvemos a poner en true. Como el grafo tiene ID, ECharts usará las posiciones *actuales* y los nodos no se moverán ni un milímetro.
+        layoutAnimation: true 
       },
       emphasis: {
         focus: 'adjacency', 
@@ -111,8 +115,7 @@ const GraphInteractiveCanvas = memo(({ skeleton, cloudNodes, currentStepEdges, l
   );
 });
 
-
-// --- 2. COMPONENTE PRINCIPAL (Orquestador de Datos Intacto) ---
+// --- 2. COMPONENTE PRINCIPAL ---
 export default function VisualizeGraph({ migration }) {
   const [milestones, setMilestones] = useState([]);
   const [allStages, setAllStages] = useState([]);
@@ -125,23 +128,38 @@ export default function VisualizeGraph({ migration }) {
 
   useEffect(() => {
     if (migration?.id) {
+      // Cargamos rutas críticas
       fetch(`${API_BASE}/${migration.id}/critical-paths`)
         .then(res => res.json())
         .then(data => {
           setMilestones(data);
           if (data.length > 0) {
             setPathNumber(String(data[0].path_number));
-            loadSkeleton(data[0].path_number);
+            // Pasamos "data" directamente porque setMilestones es asíncrono
+            loadSkeleton(data[0].path_number, data); 
           }
         });
 
+      // Cargamos el histórico de componentes on-prem/cloud
       fetch(`${API_BASE}/${migration.id}/stages`)
         .then(res => res.json())
         .then(data => setAllStages(data));
     }
   }, [migration.id]);
 
-  const loadSkeleton = async (num) => {
+  // 🛡️ ACTUALIZADO: Pasamos el parámetro a la URL explícitamente
+  const loadStepEdges = (stageNum, currentPathNumber) => {
+    const targetPath = currentPathNumber !== undefined ? currentPathNumber : pathNumber;
+    if (targetPath === '' || targetPath === undefined || targetPath === null) return;
+
+    fetch(`${API_BASE}/${migration.id}/stages/${stageNum}/critical-path-update?path_number=${targetPath}`)
+      .then(res => res.json())
+      .then(data => setCurrentStepEdges(data))
+      .catch(err => console.error("Error cargando aristas:", err));
+  };
+
+  // 🛡️ ACTUALIZADO: Usa parámetros frescos para evitar bugs asíncronos en el primer render
+  const loadSkeleton = async (num, freshMilestones) => {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/${migration.id}/critical-paths/${num}/topology`);
@@ -149,20 +167,16 @@ export default function VisualizeGraph({ migration }) {
       setSkeleton(data);
       setStageIdx(0);
       
-      const pathInfo = milestones.find(p => p.path_number === Number(num));
+      const currentMilestones = freshMilestones || milestones;
+      const pathInfo = currentMilestones.find(p => p.path_number === Number(num));
       const firstStage = pathInfo?.affected_stages[0] || 0;
-      loadStepEdges(firstStage);
+      
+      loadStepEdges(firstStage, num);
     } catch (err) {
       console.error("Error loading skeleton:", err);
     } finally {
       setLoading(false);
     }
-  };
-
-  const loadStepEdges = (stageNum) => {
-    fetch(`${API_BASE}/${migration.id}/stages/${stageNum}/critical-path-update`)
-      .then(res => res.json())
-      .then(data => setCurrentStepEdges(data));
   };
 
   const cloudNodes = useMemo(() => {
@@ -173,7 +187,7 @@ export default function VisualizeGraph({ migration }) {
 
     const accumulated = new Set(skeleton.initial_cloud_nodes || []);
     allStages.forEach((stage, idx) => {
-      if (idx <= currentStageLimit) {
+      if (stage.stage_number <= currentStageLimit) {
         stage.migrated_components.forEach(node => accumulated.add(node));
       }
     });
@@ -187,14 +201,13 @@ export default function VisualizeGraph({ migration }) {
     const nextIdx = stageIdx + dir;
     if (nextIdx >= 0 && nextIdx < pathInfo.affected_stages.length) {
       setStageIdx(nextIdx);
-      loadStepEdges(pathInfo.affected_stages[nextIdx]);
+      loadStepEdges(pathInfo.affected_stages[nextIdx], pathNumber);
     }
   };
 
   return (
     <div className="flex flex-col h-full bg-slate-50 relative font-sans overflow-hidden select-none">
       
-      {/* FLOATING HEADER: PATH INPUT & LEYENDA */}
       <div className="absolute top-6 left-6 flex flex-col gap-4 z-20 pointer-events-none">
         <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-lg border border-slate-200/60 flex flex-col pointer-events-auto">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Path Number</label>
@@ -233,7 +246,6 @@ export default function VisualizeGraph({ migration }) {
         </div>
       </div>
 
-      {/* CANVAS RENDERING AREA AISLADA CON ECHARTS */}
       <GraphInteractiveCanvas 
         skeleton={skeleton} 
         cloudNodes={cloudNodes} 
@@ -241,7 +253,6 @@ export default function VisualizeGraph({ migration }) {
         loading={loading}
       />
 
-      {/* FLOATING BOTTOM NAVIGATION */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20">
         <div className="bg-white/95 backdrop-blur-xl px-8 py-5 rounded-full shadow-2xl border border-slate-200/60 flex items-center gap-10">
           <button 

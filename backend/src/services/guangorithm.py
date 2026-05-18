@@ -1,31 +1,52 @@
 import logging
 from tqdm import tqdm
+import networkx as nx
 
 logger = logging.getLogger(__name__)
 
-# Funciones auxiliares
 def calculate_path_latency(path_info, pending_components, method_to_component, l_extra):
     acc_latency = {}
-    for invoker, invoked, edge_latency in path_info['edges_data']:
-        comp_invoker = method_to_component.get(invoker)
-        comp_invoked = method_to_component.get(invoked)
+    for arista in path_info['aristas_precalculadas']:
+        invoker = arista["invoker"]
+        invoked = arista["invoked"]
+        edge_latency = arista["base_latency"]
 
-        crossing = 0
-        if comp_invoker and comp_invoked:
-            if (comp_invoker in pending_components) != (comp_invoked in pending_components):
-                crossing = 1
+        crossing = 1 if (invoker in pending_components) != (invoked in pending_components) else 0
 
-        if invoker not in acc_latency:
-            acc_latency[invoker] = 0
-
+        acc_latency[invoker] = acc_latency.get(invoker, 0)
         new_latency = acc_latency[invoker] + edge_latency + (crossing * l_extra)
-
-        if invoked not in acc_latency:
-            acc_latency[invoked] = new_latency
-        else:
-            acc_latency[invoked] = max(acc_latency[invoked], new_latency)
+        acc_latency[invoked] = max(acc_latency.get(invoked, 0), new_latency)
 
     return max(acc_latency.values()) if acc_latency else 0
+
+def get_longest_continuous_path(G_path, base_weights, pending_components, l_extra):
+    """
+    Calcula el peor camino interno (línea continua) de un subgrafo específico.
+    Se ejecuta en O(E) porque el subgrafo ya está limpio de ciclos.
+    """
+    if not G_path.edges(): 
+        return []
+        
+    # Actualizamos los pesos al vuelo según el estado actual (on-prem vs cloud)
+    for u, v in G_path.edges():
+        crossing = l_extra if (u in pending_components) != (v in pending_components) else 0
+        G_path[u][v]['weight'] = base_weights[(u, v)] + crossing
+        
+    try:
+        # Extraemos LA línea continua que forma el cuello de botella
+        ruta_nodos = nx.dag_longest_path(G_path, weight='weight')
+        
+        # Reconstruimos las aristas estrictamente enlazadas
+        linea_continua = []
+        for i in range(len(ruta_nodos) - 1):
+            linea_continua.append({
+                "invoker": ruta_nodos[i],
+                "invoked": ruta_nodos[i+1],
+                "base_latency": 0.0 # Valor dummy, ECharts solo necesita origen y destino
+            })
+        return linea_continua
+    except Exception:
+        return []
 
 def calcular_arista_roja(paths_dict, pending_components, method_to_component):
     worst_id = max(paths_dict, key=lambda p: paths_dict[p]["current_total"])
@@ -41,8 +62,7 @@ def calcular_arista_roja(paths_dict, pending_components, method_to_component):
 
 def calculate_score_component(component, paths_dict, component_to_paths, component_adjacency, pending_components, l_max, l_extra, componentes_en_arista_roja=None):
     affected_paths = component_to_paths.get(component, set())
-    if not affected_paths:
-        return -float('inf')
+    if not affected_paths: return -float('inf')
 
     min_slack = min(l_max - paths_dict[p]["current_total"] for p in affected_paths)
     adj = component_adjacency.get(component, {})
@@ -62,8 +82,7 @@ def get_stages(c_min, c_max, l_max_final, l_extra, pending_components, paths_dic
 
     bloqueos_dict = {b['component_name']: b['stage_number'] for b in (lista_bloqueos or [])}
 
-    def _score_key(c):
-        return (-score_cache.get(c, -float('inf')), c)
+    def _score_key(c): return (-score_cache.get(c, -float('inf')), c)
 
     def commit_migration(component, current_stage):
         current_stage.append(component)
@@ -80,20 +99,63 @@ def get_stages(c_min, c_max, l_max_final, l_extra, pending_components, paths_dic
         for c in componentes_a_invalidar: score_cache.pop(c, None)
         score_cache.pop(component, None)
 
-    initial_max_latency = max((path_info.get("current_total", 0) for path_info in paths_dict.values()), default=0)
-    critical_paths_latency.append(initial_max_latency)
-
-    # --- NUEVO: PRECALCULAR ARISTAS ANTES DE ITERAR ETAPAS (Aumenta muchísimo el rendimiento) ---
+    # 1. PRE-CALCULO: Construimos y limpiamos los subgrafos UNA SOLA VEZ
+    logger.info("Preparando subgrafos y rompiendo ciclos internos...")
     for path_info in paths_dict.values():
         aristas_pre = []
+        G_path = nx.DiGraph()
+        base_weights = {}
+        
         for inv, invd, base_lat in path_info['edges_data']:
             comp_inv = method_to_component.get(inv, str(inv))
             comp_invd = method_to_component.get(invd, str(invd))
-            aristas_pre.append({"invoker": comp_inv, "invoked": comp_invd, "base_latency": float(base_lat)})
-        path_info['aristas_precalculadas'] = aristas_pre
-    # ----------------------------------------------------------------------------------------------
+            w = float(base_lat)
+            aristas_pre.append({"invoker": comp_inv, "invoked": comp_invd, "base_latency": w})
+            
+            if G_path.has_edge(comp_inv, comp_invd):
+                G_path[comp_inv][comp_invd]['weight'] = max(G_path[comp_inv][comp_invd]['weight'], w)
+                base_weights[(comp_inv, comp_invd)] = max(base_weights.get((comp_inv, comp_invd), 0), w)
+            else:
+                G_path.add_edge(comp_inv, comp_invd, weight=w)
+                base_weights[(comp_inv, comp_invd)] = w
 
+        # Rompemos posibles ciclos que vengan en el CSV para este path específico
+        while not nx.is_directed_acyclic_graph(G_path):
+            try:
+                ciclo = nx.find_cycle(G_path, orientation='original')
+                min_edge = min(ciclo, key=lambda e: G_path[e[0]][e[1]]['weight'])
+                G_path.remove_edge(min_edge[0], min_edge[1])
+            except:
+                break
+                
+        path_info['aristas_precalculadas'] = aristas_pre
+        path_info['dag'] = G_path
+        path_info['base_weights'] = base_weights
+        path_info["current_total"] = calculate_path_latency(path_info, components_on_prem, method_to_component, l_extra)
+        path_info['evolucion_por_etapa'] = []
+
+    # 2. FOTO INICIAL (ETAPA 0)
+    for path_id, path_info in paths_dict.items():
+        extra_edges_inicial = [e for e in path_info['aristas_precalculadas'] if (e["invoker"] in components_on_prem) != (e["invoked"] in components_on_prem)]
+        
+        path_info['evolucion_por_etapa'].append({
+            "stage_number": 0,
+            "critical_time": float(path_info.get("current_total", 0)),
+            "migrated_components": [], 
+            # AHORA SÍ: Calculamos el peor camino interno para CADA path independientemente
+            "worst_path_edges": get_longest_continuous_path(path_info['dag'], path_info['base_weights'], components_on_prem, l_extra), 
+            "extra_latency_edges": extra_edges_inicial
+        })
+
+    initial_max_latency = max((path_info.get("current_total", 0) for path_info in paths_dict.values()), default=0)
+    critical_paths_latency.append(initial_max_latency)
+
+    stage_count = 0
     while components_on_prem:
+        stage_count += 1
+        if stage_count % 10 == 0 or stage_count == 1:
+            logger.info(f"⏳ Guangorithm - Procesando etapa {stage_count}... Quedan {len(components_on_prem)}/{total_components} on-premise.")
+
         current_stage = []
         actual_max = max((p["current_total"] for p in paths_dict.values()), default=0)
         migrated = total_components - len(components_on_prem)
@@ -101,7 +163,6 @@ def get_stages(c_min, c_max, l_max_final, l_extra, pending_components, paths_dic
         l_target = l_max_final * (1 + umbral)
         buffer = l_extra * (1 - progress)
         l_effective = max(l_target, actual_max + buffer)
-        en_fase_forzada = l_effective > l_target
 
         componentes_en_arista_roja = calcular_arista_roja(paths_dict, components_on_prem, method_to_component)
         current_stage_num = len(stages) + 1
@@ -168,25 +229,20 @@ def get_stages(c_min, c_max, l_max_final, l_extra, pending_components, paths_dic
         critical_paths_latency.append(current_max_latency)
 
         stage_number = len(stages)
-        for path_info in paths_dict.values():
-            if 'evolucion_por_etapa' not in path_info: path_info['evolucion_por_etapa'] = []
-            
-            # --- FILTRO ULTRARRÁPIDO USANDO LAS ARISTAS PRECALCULADAS ---
-            extra_edges = [
-                e for e in path_info['aristas_precalculadas']
-                if (e["invoker"] in components_on_prem) != (e["invoked"] in components_on_prem)
-            ]
+
+        for path_id, path_info in paths_dict.items():
+            extra_edges = [e for e in path_info['aristas_precalculadas'] if (e["invoker"] in components_on_prem) != (e["invoked"] in components_on_prem)]
             
             path_info['evolucion_por_etapa'].append({
                 "stage_number": stage_number,
                 "critical_time": float(path_info.get("current_total", 0)),
                 "migrated_components": current_stage.copy(),
-                "worst_path_edges": path_info['aristas_precalculadas'],
+                # AHORA SÍ: Todos los paths tienen su propia línea continua calculada
+                "worst_path_edges": get_longest_continuous_path(path_info['dag'], path_info['base_weights'], components_on_prem, l_extra),
                 "extra_latency_edges": extra_edges
             })
 
     return stages, critical_paths_latency, forzadas
-
 
 def generate_migration_plan(nodes_dict, edges_dict, paths_dict, method_to_component, component_to_paths, component_adjacency, pending_components, component_to_cluster, c_min, c_max, l_max, l_extra, umbral, lista_bloqueos, **kwargs):
     logger.info("Iniciando algoritmo Guangorithm")

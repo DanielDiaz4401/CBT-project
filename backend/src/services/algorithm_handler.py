@@ -1,5 +1,6 @@
 import io
 import logging
+import sys
 import traceback
 import numpy as np
 from sqlalchemy.orm import Session
@@ -9,36 +10,26 @@ import ast
 
 from app.db import crud, models
 
-# 1. Importamos las funciones de cada algoritmo con alias
+# 🔥 1. FORZAR LOGS EN DOCKER 🔥
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger(__name__)
+
+# Importamos las funciones de cada algoritmo con alias
 from app.services.guangorithm import generate_migration_plan as run_guangorithm
 from app.services.robergorithm2 import generate_migration_plan as run_robergorithm_v2
 from app.services.robergorithm3 import generate_migration_plan as run_robergorithm_v3
 
-logger = logging.getLogger(__name__)
-
-# 2. PATRÓN STRATEGY: Diccionario que mapea el tipo de algoritmo a su función
 ALGORITHM_STRATEGIES = {
     "guangorithm": run_guangorithm,
     "robergorithm_v2": run_robergorithm_v2,
     "robergorithm_v3": run_robergorithm_v3
 }
 
-def to_serializable(obj):
-    if isinstance(obj, (np.integer, int)): return int(obj)
-    if isinstance(obj, (np.floating, float)): return float(obj)
-    if isinstance(obj, list): return [to_serializable(item) for item in obj]
-    if isinstance(obj, dict): return {k: to_serializable(v) for k, v in obj.items()}
-    return obj
-
-import ast
-import pandas as pd
-
 def validate_and_prepare_data(buffer_nodos, buffer_aristas, buffer_paths, l_extra):
-    """
-    Lee los CSVs, valida las cabeceras reales y aplica el parsing
-    original de guangorithm.py (ast.literal_eval, percentiles y diccionarios).
-    """
-    # ── 1. VALIDACIÓN ESTRICTA DE CABECERAS REALES ──
     try:
         df_n = pd.read_csv(buffer_nodos, nrows=0)
         df_a = pd.read_csv(buffer_aristas, nrows=0)
@@ -57,19 +48,20 @@ def validate_and_prepare_data(buffer_nodos, buffer_aristas, buffer_paths, l_extr
     buffer_aristas.seek(0)
     buffer_paths.seek(0)
 
-    # ── 2. LECTURA ──
     nodes_df = pd.read_csv(buffer_nodos)
     edges_df = pd.read_csv(buffer_aristas)
     paths_df = pd.read_csv(buffer_paths)
 
-    # ── 3. EXTRACCIÓN Y LIMPIEZA ──
+    # 🛡️ FIX CRÍTICO: Forzar todos los identificadores a String para evitar colisiones de tipo (int vs str)
+    nodes_df['component'] = nodes_df['component'].astype(str)
+    nodes_df['node'] = nodes_df['node'].astype(str)
+    edges_df['invoker'] = edges_df['invoker'].astype(str)
+    edges_df['invoked'] = edges_df['invoked'].astype(str)
 
-    # A) method_to_component (desde nodes_df)
     method_to_component = {}
     for _, row in nodes_df.iterrows():
         method_to_component[row['node']] = row['component']
 
-    # B) Procesamiento de Nodos
     def resolve_arch(archs):
         return 'on-prem' if 'on-prem' in archs.values else 'cloud'
 
@@ -87,7 +79,6 @@ def validate_and_prepare_data(buffer_nodos, buffer_aristas, buffer_paths, l_extr
         
     pending_components = {comp_id for comp_id, info in nodes_dict.items() if not info["migrated"]}
 
-    # C) Procesamiento de Aristas
     edges_df = edges_df.copy()
     mask_neg = edges_df['avg_time'] < 0
     if mask_neg.sum():
@@ -103,9 +94,8 @@ def validate_and_prepare_data(buffer_nodos, buffer_aristas, buffer_paths, l_extr
         
     edges_dict = {}
     for _, row in edges_df.iterrows():
-        edges_dict[(row['invoker'], row['invoked'])] = row['avg_time']
+        edges_dict[(row['invoker'], row['invoked'])] = float(row['avg_time'])
 
-    # D) Función auxiliar de latencia inicial
     def calculate_path_latency(path_info, pending, m2c, l_ext):
         acc_latency = {}
         for invoker, invoked, edge_latency in path_info['edges_data']:
@@ -124,7 +114,6 @@ def validate_and_prepare_data(buffer_nodos, buffer_aristas, buffer_paths, l_extr
                 acc_latency[invoked] = max(acc_latency[invoked], new_latency)
         return max(acc_latency.values()) if acc_latency else 0
 
-    # E) Procesamiento de Rutas (parse_path real)
     paths_dict = {}
     seen_paths = set()
     for index, row in paths_df.iterrows():
@@ -137,9 +126,10 @@ def validate_and_prepare_data(buffer_nodos, buffer_aristas, buffer_paths, l_extr
         cleaned_edges = []
         seen = set()
         for invoker, invoked in raw_tuples:
-            if invoker == -1 or invoked == -1:
+            inv_str, invd_str = str(invoker), str(invoked) # Convertimos la ruta a strings
+            if inv_str == '-1' or invd_str == '-1':
                 continue
-            current_tuple = (invoker, invoked)
+            current_tuple = (inv_str, invd_str)
             if current_tuple in seen:
                 continue
             seen.add(current_tuple)
@@ -151,18 +141,16 @@ def validate_and_prepare_data(buffer_nodos, buffer_aristas, buffer_paths, l_extr
             continue
         seen_paths.add(tuple(cleaned_edges))
 
-        edges_data = [(inv, invd, edges_dict.get((inv, invd), 0)) for inv, invd in cleaned_edges]
+        edges_data = [(inv, invd, edges_dict.get((inv, invd), 0.0)) for inv, invd in cleaned_edges]
         paths_dict[f"path_{index}"] = {
             "edges": cleaned_edges,
             "edges_data": edges_data,
             "current_total": 0
         }
 
-    # Asignar latencias iniciales
     for path_id, path_info in paths_dict.items():
         path_info["current_total"] = calculate_path_latency(path_info, pending_components, method_to_component, l_extra)
 
-    # F) Mapas de adyacencia y cruce
     component_to_paths = {}
     component_adjacency = {}
     for comp in nodes_dict.keys():
@@ -179,7 +167,6 @@ def validate_and_prepare_data(buffer_nodos, buffer_aristas, buffer_paths, l_extr
                 component_adjacency[comp_invoker]['invokes'].add(comp_invoked)
                 component_adjacency[comp_invoked]['invoked_by'].add(comp_invoker)
 
-    # G) Clustering Leiden
     try:
         import igraph as ig
         import leidenalg
@@ -210,6 +197,7 @@ def run_simulation_process(db: Session, sim_id: UUID):
     if not sim: return
 
     try:
+        logger.info(f"🟢 [SIM {sim_id}] Iniciando preparación de datos (Lectura CSV)...")
         buffer_nodos = io.BytesIO(sim.nodes_file.content)
         buffer_aristas = io.BytesIO(sim.edges_file.content)
         buffer_paths = io.BytesIO(sim.paths_file.content)
@@ -223,12 +211,12 @@ def run_simulation_process(db: Session, sim_id: UUID):
         algo_type = getattr(sim, "algorithm_type", "guangorithm")
         algorithm_func = ALGORITHM_STRATEGIES.get(algo_type, run_guangorithm)
         
-        logger.info(f"Ejecutando simulación {sim_id} con la estrategia: {algo_type}")
-
         bloqueos_db = db.query(models.BlockedComponents).filter_by(simulation_id=sim_id).all()
         bloqueos_lista = [{"component_name": b.component_name, "stage_number": b.stage_number} for b in bloqueos_db]
 
-        migration_plan = algorithm_func(
+        logger.info(f"⚙️ [SIM {sim_id}] Ejecutando motor matemático: {algo_type}")
+        
+        plan = algorithm_func(
             nodes_dict=nodes_dict,
             edges_dict=edges_dict,
             paths_dict=paths_dict,
@@ -245,51 +233,112 @@ def run_simulation_process(db: Session, sim_id: UUID):
             lista_bloqueos=bloqueos_lista
         )
         
-        plan = to_serializable(migration_plan)
+        logger.info(f"✅ [SIM {sim_id}] Algoritmo finalizado. Comenzando guardado en Base de Datos...")
 
-        # 2. Guardar Etapas Globales
-        stages_data = [
-            {
-                "stage_number": i,
+        # 1. Recuperamos los nodos que YA ESTABAN en el Cloud en el CSV inicial
+        initial_cloud_nodes = [comp for comp, info in nodes_dict.items() if info["migrated"]]
+        
+        # Calculamos la latencia máxima inicial (Etapa 0) por si el Frontend la necesita
+        initial_time = 0.0
+        if plan.get("rutas_criticas"):
+            for r in plan["rutas_criticas"]:
+                for evo in r.get("evolucion_por_etapa", []):
+                    if evo["stage_number"] == 0 and evo["critical_time"] > initial_time:
+                        initial_time = evo["critical_time"]
+
+        # 2. Inyectamos la "Etapa 0" en la Base de Datos para que React la lea
+        stages_data = [{
+            "stage_number": 0,
+            "migrated_components": initial_cloud_nodes,
+            "worst_critical_time": float(initial_time)
+        }]
+        
+        # 3. Añadimos el resto de etapas reales de migración
+        for etapa in plan["etapas"]:
+            stages_data.append({
+                "stage_number": etapa["stage_number"], 
                 "migrated_components": etapa["migrated_components"],
-                "worst_critical_time": etapa["worst_critical_time"]
-            } 
-            for i, etapa in enumerate(plan["etapas"])
-        ]
+                "worst_critical_time": float(etapa["worst_critical_time"])
+            })
+            
         crud.add_simulation_stages_bulk(db, sim_id, stages_data)
-
-        # 3. Cálculo de HITOS (Affected Stages)
+        
+        total_rutas = len(plan["rutas_criticas"])
+        logger.info(f"💾 [SIM {sim_id}] Preparando inserción masiva de {total_rutas} rutas críticas...")
+        
+        db_paths = []
         for path_data in plan["rutas_criticas"]:
             path_nodes = set(path_data["nodos"]) 
             hitos = [0] 
-            for i, etapa in enumerate(plan["etapas"]):
-                componentes_etapa = set(etapa["migrated_components"])
-                # Si hay intersección, esta etapa AFECTA al camino
-                if path_nodes.intersection(componentes_etapa):
-                    hitos.append(i)
+            for etapa in plan["etapas"]:
+                if path_nodes.intersection(set(etapa["migrated_components"])):
+                    hitos.append(etapa["stage_number"])
+
             
-            # Guardamos la cabecera del camino con sus HITOS reales
-            db_path = crud.create_critical_path(
-                db, 
-                sim_id, 
-                path_data["path_number"], 
-                affected_stages=sorted(list(set(hitos))) # Guardamos los índices
+            db_path = models.CriticalPath(
+                simulation_id=sim_id,
+                path_number=path_data["path_number"],
+                affected_stages=sorted(list(set(hitos)))
             )
+            db_paths.append(db_path)
             
-            # Guardamos el resto de la estructura (nodos/aristas)
-            crud.add_path_nodes_bulk(db, db_path.id, path_data["nodos"])
-            crud.add_path_edges_bulk(db, db_path.id, path_data["aristas"])
+        # Obtenemos los IDs pre-generados de las rutas
+        db.add_all(db_paths)
+        db.flush() 
+        
+        all_nodes = []
+        all_edges = []
+        
+        # 1. Inyectamos nodos y aristas base primero (Ocupan megabytes, no hay problema)
+        for db_path, path_data in zip(db_paths, plan["rutas_criticas"]):
+            for node in path_data["nodos"]:
+                all_nodes.append({"path_id": db_path.id, "component_name": node})
+            for edge in path_data["aristas"]:
+                all_edges.append({
+                    "path_id": db_path.id,
+                    "invoker": edge["invoker"],
+                    "invoked": edge["invoked"],
+                    "base_latency": float(edge["base_latency"])
+                })
+                
+        if all_nodes: db.bulk_insert_mappings(models.PathNode, all_nodes)
+        if all_edges: db.bulk_insert_mappings(models.PathEdge, all_edges)
+            
+        logger.info(f"🚀 [SIM {sim_id}] Inyectando historial temporal ruta por ruta para salvar RAM...")
+        
+        # 2. 🔥 INSERCIÓN "STREAMING" (El salvavidas de la memoria) 🔥
+        for db_path, path_data in zip(db_paths, plan["rutas_criticas"]):
+            path_stages = [] # <--- Nace vacío SOLO para esta ruta
+            
+            for evo in path_data.get("evolucion_por_etapa", []):
+                path_stages.append({
+                    "path_id": db_path.id,
+                    "stage_number": evo["stage_number"],
+                    "critical_time": float(evo["critical_time"]),
+                    "migrated_components": evo["migrated_components"],
+                    "worst_path_edges": evo.get("worst_path_edges", []),
+                    "extra_latency_edges": evo.get("extra_latency_edges", [])
+                })
+            
+            # Insertamos solo las etapas de esta ruta (aprox 2.000 diccionarios) directamente a BD
+            if path_stages:
+                db.bulk_insert_mappings(models.CriticalPathStage, path_stages)
+                
+            # Al terminar el bucle, Python destruye 'path_stages', liberando la RAM inmediatamente
 
-            if stages_to_insert:
-                crud.add_critical_path_stages_bulk(db, db_path.id, stages_to_insert)
-
+        # 3. El único COMMIT al disco de todo el proceso
         if plan["meets_requirements"]:
             crud.update_simulation_status(db, sim_id, models.SimulationStatus.COMPLETED)
+            logger.info(f"🎉 [SIMULATION {sim_id}] Completada con Éxito.")
         else:
             crud.update_simulation_status(db, sim_id, models.SimulationStatus.FAILED)
+            logger.warning(f"⚠️ [SIMULATION {sim_id}] Completada pero falló los requisitos (Fallback forzado).")
+            
+        db.commit()
 
     except Exception as e:
         db.rollback()
         error_details = traceback.format_exc()
-        logger.error(f"FALLO CRÍTICO en simulación {sim_id}:\n{error_details}")
+        logger.error(f"💥 FALLO CRÍTICO en simulación {sim_id}:\n{error_details}")
         crud.update_simulation_status(db, sim_id, models.SimulationStatus.ERROR, error=str(e))
+        db.commit()

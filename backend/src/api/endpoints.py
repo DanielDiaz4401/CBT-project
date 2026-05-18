@@ -159,19 +159,16 @@ def get_simulation_stages(sim_id: UUID, db: Session = Depends(session.get_db)):
 
 @router.get("/{sim_id}/stages/{stage_number}/critical-path-update", response_model=schemas.CriticalPathStepUpdate)
 def get_stage_path_update(sim_id: UUID, stage_number: int, path_number: Optional[int] = None, db: Session = Depends(session.get_db)):
-    # Obtenemos los nodos migrados de forma global
     stage_info = db.query(crud.models.SimulationStage).filter(
         crud.models.SimulationStage.simulation_id == sim_id,
         crud.models.SimulationStage.stage_number == stage_number
     ).first()
     
-    if not stage_info:
-        raise HTTPException(status_code=404)
+    migrated_nodes = stage_info.migrated_components if stage_info else []
 
     worst_edges = []
     extra_edges = []
 
-    # Leemos la foto precalculada del algoritmo directamente desde la DB (O(1))
     if path_number is not None:
         path_stage_info = db.query(crud.models.CriticalPathStage).join(crud.models.CriticalPath).filter(
             crud.models.CriticalPath.simulation_id == sim_id,
@@ -185,7 +182,7 @@ def get_stage_path_update(sim_id: UUID, stage_number: int, path_number: Optional
 
     return schemas.CriticalPathStepUpdate(
         stage_number=stage_number,
-        newly_migrated_nodes=stage_info.migrated_components,
+        newly_migrated_nodes=migrated_nodes,
         worst_path_edges=worst_edges,
         extra_latency_edges=extra_edges
     )
