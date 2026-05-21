@@ -113,3 +113,21 @@ Please head to `http://localhost:8000/docs` to:
 * Review standardized HTTP responses and error codes.
 
 ---
+
+## 🧠 Core Architecture: The Dual-Algorithm Strategy
+
+Migrating a highly-coupled architecture of 64,000+ nodes to the cloud presents a strict mathematical trade-off: **Scale vs. Precision**. A single algorithm cannot process massive topological structures while simultaneously preserving deep business logic affinity without exceeding memory limits or breaking latency SLAs. 
+
+To solve this, we engineered a dual-engine approach:
+
+### 🚀 Algorithm 1: The Scale Engine (Topological Linear Search)
+* **Time Complexity:** $O(C \cdot P \cdot (V+E))$ — *Linear Scaling*
+* **Mechanism:** Sweeps the entire network layer-by-layer using strict topological sorting and flat hash maps for $O(1)$ data access. 
+* **Use Case:** Built for raw performance and memory safety. It dominates massive, chaotic legacy structures by prioritizing speed and structural parsing over domain grouping. It guarantees the migration of the bulk architecture without CPU bottlenecks.
+
+### 🛡️ Algorithm 2: The Business Shield (Leiden Clustering)
+* **Time Complexity:** $O(P \cdot V^2)$ — *Quadratic Polynomial*
+* **Mechanism:** Implements community-detection clustering to group microservices by business affinity, constantly simulating and recalculating routing impact matrices.
+* **Use Case:** Built for extreme SLA precision. It acts as a safeguard for highly-coupled microservice meshes. By sacrificing computational speed, it ensures that critical components communicating heavily are migrated as an unbreakable logical block, strictly protecting user-experience latency.
+
+---
